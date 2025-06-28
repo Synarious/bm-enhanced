@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Battlemetrics Enhanced",
+  "description": "Modifies the RCON panel for Battlemetrics with enhancements and color coding.",
+  "version": "2.0",
+  "icons": {
+    "128": "icons/icon.png"
+  },
+  "permissions": [
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.battlemetrics.com/*",
+    "https://communitybanlist.com/*",
+    "https://raw.githubusercontent.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.battlemetrics.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [{
+    "resources": ["icons/icon.png"],
+    "matches": ["https://www.battlemetrics.com/*"]
+  }]
+}

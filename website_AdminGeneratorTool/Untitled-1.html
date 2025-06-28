@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Role Highlighter with Alias & Blacklist</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    textarea, pre { width: 100%; box-sizing: border-box; margin-bottom: 10px; white-space: pre-wrap; }
+    .output-line { padding: 4px; margin: 2px 0; }
+    .color-0 { color: black; }
+    .color-1 { color: gold; }
+    .color-2 { color: green; }
+    .color-3 { color: blue; }
+  </style>
+</head>
+<body>
+  <h2>Data From Page</h2>
+  <textarea id="dataInput" rows="10" placeholder="Paste your 'Data From Page' here..."></textarea>
+
+  <h2>Role Groups (Format: number = Role Name)</h2>
+  <textarea id="groupsInput" rows="10" placeholder="Example:\n3 = Director\n1 = Squad"></textarea>
+
+  <h2>Aliases & Blacklist (Loaded from adminAliases.txt)</h2>
+  <pre id="aliasDisplay" style="background:#f0f0f0; padding:10px; min-height: 100px; border: 1px solid #ccc;">
+Loading adminAliases.txt...
+  </pre>
+
+  <button onclick="processData()">Process</button>
+
+  <h2>Formatted Output</h2>
+  <div id="output"></div>
+
+  <h2>adminList.json</h2>
+  <textarea id="jsonOutput" rows="20" readonly></textarea>
+
+  <script>
+    let loadedAliasesText = '';
+
+    async function loadAdminAliases() {
+      try {
+        const response = await fetch('adminAliases.txt');
+        if (!response.ok) throw new Error('Failed to fetch adminAliases.txt');
+        const text = await response.text();
+        loadedAliasesText = text.trim();
+        document.getElementById('aliasDisplay').textContent = loadedAliasesText || '(empty file)';
+      } catch (error) {
+        document.getElementById('aliasDisplay').textContent = 'Error loading adminAliases.txt:\n' + error.message;
+      }
+    }
+
+    function parseAliasAndBlacklist(input) {
+      const aliasMap = {};
+      const blacklist = new Set();
+
+      const lines = input.trim().split('\n');
+      lines.forEach(line => {
+        const aliasMatch = line.match(/^alias\s*=\s*"(.*?)"\s*=\s*"(.*?)"$/i);
+        const blacklistMatch = line.match(/^blacklist\s*=\s*"(.*?)"$/i);
+
+        if (aliasMatch) {
+          const [, alias, actual] = aliasMatch;
+          aliasMap[alias.trim()] = actual.trim();
+        } else if (blacklistMatch) {
+          blacklist.add(blacklistMatch[1].trim());
+        }
+      });
+
+      return { aliasMap, blacklist };
+    }
+
+    function processData() {
+      const dataRaw = document.getElementById('dataInput').value.trim().split('\n');
+      const groupRaw = document.getElementById('groupsInput').value.trim().split('\n');
+
+      // Use the loaded aliases text instead of textarea
+      const aliasRaw = loadedAliasesText;
+
+      const roleGroups = {};
+      groupRaw.forEach(line => {
+        const match = line.match(/^(\d)\s*=\s*(.+)$/);
+        if (match) {
+          const [, group, role] = match;
+          roleGroups[role.trim()] = parseInt(group);
+        }
+      });
+
+      const { aliasMap, blacklist } = parseAliasAndBlacklist(aliasRaw);
+
+      const outputDiv = document.getElementById('output');
+      outputDiv.innerHTML = '';
+
+      const group1 = [], group2 = [], group3 = [];
+
+      dataRaw.forEach(line => {
+        if (!line.includes('|||')) return;
+
+        const [nameRaw, rolesRaw] = line.split('|||');
+        let name = nameRaw.trim();
+        const roles = rolesRaw.trim().split(/\s+/);
+
+        if (aliasMap.hasOwnProperty(name)) {
+          name = aliasMap[name];
+        }
+
+        if (blacklist.has(name)) return;
+
+        let foundGroups = new Set();
+
+        roles.forEach(role => {
+          if (roleGroups.hasOwnProperty(role)) {
+            foundGroups.add(roleGroups[role]);
+          }
+        });
+
+        const maxGroup = [...foundGroups].length > 0 ? Math.max(...foundGroups) : 0;
+        const colorClass = `color-${maxGroup}`;
+
+        const div = document.createElement('div');
+        div.className = `output-line ${colorClass}`;
+        div.textContent = `${name} ||| ${roles.join(' ')}`;
+        outputDiv.appendChild(div);
+
+        const has1 = foundGroups.has(1);
+        const has2 = foundGroups.has(2);
+        const has3 = foundGroups.has(3);
+
+        if (has3 || (has1 && has2)) {
+          group3.push(name);
+        } else if (has2) {
+          group2.push(name);
+        } else if (has1) {
+          group1.push(name);
+        }
+      });
+
+      const resultJSON = {
+        group1: [...new Set(group1)].sort(),
+        group2: [...new Set(group2)].sort(),
+        group3: [...new Set(group3)].sort()
+      };
+
+      document.getElementById('jsonOutput').value = JSON.stringify(resultJSON, null, 4);
+    }
+
+    window.addEventListener('DOMContentLoaded', loadAdminAliases);
+  </script>
+</body>
+</html>

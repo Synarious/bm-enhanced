@@ -1,0 +1,15 @@
+0 = Appeal Team
+0 = Developer
+3 = Director
+3 = Meckle
+0 = offworld_qa
+0 = Recruiter
+2 = Reforger
+2 = Reforger Admin
+1 = Squad
+1 = Squad Admin
+0 = Squad EP
+1 = Squad Moderator
+0 = Squad Sherpa/Server 6
+0 = Staff Recruiter
+0 = Visiting Administrator

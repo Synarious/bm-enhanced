@@ -25,24 +25,24 @@ jobs:
       run: npm install
 
     - name: Minify JS
-      run: npx uglify-js code.js -o code.min.js
+      run: npx uglify-js code/source.js -o code/source.min.js
 
-    - name: Replace Line 17 in bm-toolkit-desktop.min.js with contents of code.min.js
+    - name: Replace Line 17 in bm-enhanced.min.js with contents of source.min.js
       run: |
         tmp_file=$(mktemp)
-        cp code.min.js "$tmp_file"
-        sed -i '17s~.*~'"$(sed 's/[\/&]/\\&/g' "$tmp_file")"'~' bm-toolkit-desktop.min.js
+        cp code/source.min.js "$tmp_file"
+        sed -i '17s~.*~'"$(sed 's/[\/&]/\\&/g' "$tmp_file")"'~' code/bm-enhanced.min.js
         rm "$tmp_file"
-    
-    - name: Update @version in bm-toolkit-desktop.min.js to CONST version
+
+    - name: Update @version in bm-enhanced.min.js to CONST version
       run: |
-        version=$(grep -oP 'const version = "\K[^"]+' code.js)
-        sed -i "4s|// @version [0-9]*\(\.[0-9]*\)\?|// @version $version|" bm-toolkit-desktop.min.js
-      
+        version=$(grep -oP 'const version = "\K[^"]+' code/source.js)
+        sed -i "4s|// @version [0-9]*\(\.[0-9]*\)\?|// @version $version|" code/bm-enhanced.min.js
+
     - name: Commit and push changes
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
-        git add code.min.js bm-toolkit-desktop.min.js
+        git add code/source.min.js code/bm-enhanced.min.js
         git commit -m "Minify JS and Update Versions" || echo "No changes to commit"
         git push

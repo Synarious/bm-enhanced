@@ -1,0 +1,23 @@
+{
+  "name": "bm-userscript",
+  "version": "1.0.0",
+  "description": "This project is a [Userscript](https://en.wikipedia.org/wiki/Userscript) for [Tampermonkey](https://www.tampermonkey.net/) and began as a way to improve the readability of logs in populated games like Squad. Initially designed to highlight text, it has grown to include over a dozen features and quality-of-life improvements. The project has been rewritten to be easily forked and is now available for free. Primarily a passion project, it has been tested in Squad/Reforger communities but should theoretically work for all Battlemetrics-supported titles.",
+  "main": "build-extension.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Synarious/bm-userscript.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Synarious/bm-userscript/issues"
+  },
+  "homepage": "https://github.com/Synarious/bm-userscript#readme",
+  "dependencies": {
+    "crx": "^5.0.1",
+    "fs-extra": "^11.3.0"
+  }
+}
