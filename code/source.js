@@ -1,6 +1,6 @@
 const versionSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/unnamed/bm-toolkit-desktop.min.js" // link to raw github article.
-const adminListSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/adminList.json" // file is found in your repo by default.
-const customConfigSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/termList.json" // file is found in your repo by default.
+const adminListSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json" // file is found in your repo by default.
+const customConfigSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json" // file is found in your repo by default.
 const updateRate = "65" // ms Overall rate to run the code at.
 const sets = {}; // globally accessible sets object
 

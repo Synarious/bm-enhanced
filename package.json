@@ -18,6 +18,7 @@
   "homepage": "https://github.com/Synarious/bm-userscript#readme",
   "dependencies": {
     "crx": "^5.0.1",
-    "fs-extra": "^11.3.0"
+    "fs-extra": "^11.3.0",
+    "uglify-js": "^3.19.3"
   }
 }
