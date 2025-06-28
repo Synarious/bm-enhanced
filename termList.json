@@ -1,0 +1,141 @@
+{
+  "version": "3.00",
+  "updateRate": "65",
+  "bmORG_ID": "58064",
+  "serverName1": "TPS",
+  "serverName2": "[NA]",
+  "cornerBTname": "R",
+  "dropdownOptions": [
+    {
+      "label": "Server 1",
+      "url": "https://www.battlemetrics.com/rcon/servers/31707876"
+    },
+    {
+      "label": "Server 2",
+      "url": "https://www.battlemetrics.com/rcon/servers/31707887"
+    },
+    {
+      "label": "Server 3",
+      "url": "https://www.battlemetrics.com/rcon/servers/31707886"
+    },
+    {
+      "label": "Server 4",
+      "url": "https://www.battlemetrics.com/rcon/servers/31707874"
+    },
+    {
+      "label": "Server 5",
+      "url": "https://www.battlemetrics.com/rcon/servers/31490334"
+    },
+    {
+      "label": "Server 6",
+      "url": "https://www.battlemetrics.com/rcon/servers/31517967"
+    },
+    {
+      "label": "Server 7",
+      "url": "https://www.battlemetrics.com/rcon/servers/31569933"
+    },
+    {
+      "label": "Server 8",
+      "url": "https://www.battlemetrics.com/rcon/servers/31707874"
+    },
+    {
+      "label": "Server 9",
+      "url": "https://www.battlemetrics.com/rcon/servers/31879399"
+    }
+  ],
+  "sets": {
+    "teamKilled": ["team killed"],
+    "grayedOut": [
+      "You were teamkilled!",
+      "Please revive the player if you can.) by Trigger.",
+      "You MUST apologize for your teamkills in all chat!",
+      "(Welcome to the Unnamed!",
+      "Support us on our Tebex",
+      "Welcome back to the Unnamed",
+      "(Welcome to the Unnamed!",
+      "Support us on our Tebex",
+      "console key (",
+      "Shout out to our Only Fans",
+      "warned (theunnamedcorp.com)",
+      "| Please grab a squad leader",
+      "make fun of your friends! theunnamedcorp",
+      "Join a squad, you are are unassigned",
+      "Seeding Reward",
+      "Acknowledged - Provide Evidence to Discord",
+      "Trigger removed flag",
+      "Kicked player",
+      "(Vibez was the",
+      "Be sure to leave a tip for that peep",
+      "(You have entered this",
+      "Server Population: ",
+      "Ban Log: "
+    ],
+    "trackedTriggers": ["[SL Kit]"],
+    "leftServer": ["left the server"],
+    "joinedServer": ["joined the server"],
+    "actionList": [
+      "was warned",
+      "was kicked",
+      "was banned",
+      "edited BattleMetrics Ban",
+      "added BattleMetrics Ban",
+      "deleted BattleMetrics Ban"
+    ],
+    "factionGroup1": [
+      "Australian Defence Force",
+      "British Armed Forces",
+      "Canadian Armed Forces",
+      "United States Army",
+      "United States Marine Corps",
+      "Turkish Land Forces"
+    ],
+    "factionGroup2": [
+      "Russian Ground Forces",
+      "Middle Eastern Alliance",
+      "Middle Eastern Insurgents",
+      "Insurgent Forces",
+      "Irregular Militia Forces",
+      "People's Liberation Army",
+      "Russian Airborne Forces",
+      "PLA Navy Marine Corps",
+      "PLA Amphibious Ground Forces"
+    ],
+    "factionGroup3": [
+      "Western Private Military Contractors"
+    ],
+    "adminTerms": [
+      "admin",
+      "Admin",
+      "ADMIN",
+      "aDMIN",
+      "AdMIN",
+      "to the other team.",
+      ") was disbanded b",
+      "requested a list of squads.",
+      "set the next map to",
+      "changed the map to",
+      "requested the next map.",
+      "AdminRenameSquad",
+      "(Global)",
+      "executed Player Action ⚠️",
+      "Teleported to",
+      "You have made admin squads"
+    ]
+  },
+  "colors": {
+    "cStaffGroup1": "#00fdff",
+    "cStaffGroup2": "#00ff5c",
+    "cStaffGroup3": "#00ffbb",
+    "cFactionGroup1": "#4eacff",
+    "cFactionGroup2": "#d0b1ff",
+    "cFactionGroup3": "#fd6aff",
+    "cModAction": "#ff3333",
+    "cAdminAction": "#37ff00",
+    "cTeamKilled": "#ffcc00",
+    "cLeftServer": "#d9a6a6",
+    "cJoined": "#919191",
+    "cGrayed": "#919191",
+    "cTracked": "#FF931A",
+    "cNoteColorIcon": "#f5ccff"
+  }
+}
