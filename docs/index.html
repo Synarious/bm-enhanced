@@ -20,15 +20,8 @@
   <h2>Role Groups (Format: number = Role Name)</h2>
   <textarea id="groupsInput" rows="10" placeholder="Example:\n3 = Director\n1 = Squad"></textarea>
 
-  <h2>Aliases & Blacklist (Loaded from adminAliases.txt)</h2>
-  <pre id="aliasDisplay" style="background:#f0f0f0; padding:10px; min-height: 100px; border: 1px solid #ccc;">
-Loading adminAliases.txt...
-  </pre>
-
-  <h2>Role Groups BM (Loaded from roleGroupsBM.txt)</h2>
-  <pre id="roleGroupsBMDisplay" style="background:#f0f0f0; padding:10px; min-height: 100px; border: 1px solid #ccc;">
-Loading roleGroupsBM.txt...
-  </pre>
+  <h2>Aliases & Blacklist (Paste aliases and blacklist below)</h2>
+  <textarea id="aliasInput" rows="10" placeholder='Example:\nalias = "Alias1" = "RealName1"\nblacklist = "Blacklist1"'></textarea>
 
   <button onclick="processData()">Process</button>
 
@@ -39,36 +32,6 @@ Loading roleGroupsBM.txt...
   <textarea id="jsonOutput" rows="20" readonly></textarea>
 
   <script>
-    let loadedAliasesText = '';
-    let loadedRoleGroupsBM = '';
-
-    // Load adminAliases.txt
-    async function loadAdminAliases() {
-      try {
-        const response = await fetch('adminAliases.txt');
-        if (!response.ok) throw new Error('Failed to fetch adminAliases.txt');
-        const text = await response.text();
-        loadedAliasesText = text.trim();
-        document.getElementById('aliasDisplay').textContent = loadedAliasesText || '(empty file)';
-      } catch (error) {
-        document.getElementById('aliasDisplay').textContent = 'Error loading adminAliases.txt:\n' + error.message;
-      }
-    }
-
-    // Load roleGroupsBM.txt
-    async function loadRoleGroupsBM() {
-      try {
-        const response = await fetch('roleGroupsBM.txt');
-        if (!response.ok) throw new Error('Failed to fetch roleGroupsBM.txt');
-        const text = await response.text();
-        loadedRoleGroupsBM = text.trim();
-        document.getElementById('roleGroupsBMDisplay').textContent = loadedRoleGroupsBM || '(empty file)';
-      } catch (error) {
-        document.getElementById('roleGroupsBMDisplay').textContent = 'Error loading roleGroupsBM.txt:\n' + error.message;
-      }
-    }
-
-    // Parse aliases and blacklist from text
     function parseAliasAndBlacklist(input) {
       const aliasMap = {};
       const blacklist = new Set();
@@ -89,31 +52,19 @@ Loading roleGroupsBM.txt...
       return { aliasMap, blacklist };
     }
 
-    // Parse roleGroupsBM from text
-    function parseRoleGroupsBM(input) {
-      const roleGroupsBM = {};
-
-      const lines = input.trim().split('\n');
-      lines.forEach(line => {
-        const match = line.match(/^(\d)\s*=\s*(.+)$/);
-        if (match) {
-          const [, group, role] = match;
-          roleGroupsBM[role.trim()] = parseInt(group);
-        }
-      });
-
-      console.log('Parsed roleGroupsBM:', roleGroupsBM);
-      return roleGroupsBM;
-    }
-
-    // Process data and display output
     function processData() {
       const dataRaw = document.getElementById('dataInput').value.trim().split('\n');
       const groupRaw = document.getElementById('groupsInput').value.trim().split('\n');
+      const aliasRaw = document.getElementById('aliasInput').value.trim();  // Get pasted alias/blacklist data
 
-      // Use the loaded aliases and roleGroupsBM text
-      const aliasRaw = loadedAliasesText;
-      const roleGroupsBM = parseRoleGroupsBM(loadedRoleGroupsBM);
+      const roleGroups = {};
+      groupRaw.forEach(line => {
+        const match = line.match(/^(\d)\s*=\s*(.+)$/);
+        if (match) {
+          const [, group, role] = match;
+          roleGroups[role.trim()] = parseInt(group);
+        }
+      });
 
       const { aliasMap, blacklist } = parseAliasAndBlacklist(aliasRaw);
 
@@ -129,12 +80,8 @@ Loading roleGroupsBM.txt...
         let name = nameRaw.trim();
         const roles = rolesRaw.trim().split(/\s+/);
 
-        // Debugging: Log the name and roles for each line
-        console.log("Processing:", name, roles);
-
         if (aliasMap.hasOwnProperty(name)) {
           name = aliasMap[name];
-          console.log("Alias found:", name);
         }
 
         if (blacklist.has(name)) return;
@@ -142,12 +89,10 @@ Loading roleGroupsBM.txt...
         let foundGroups = new Set();
 
         roles.forEach(role => {
-          if (roleGroupsBM.hasOwnProperty(role)) {
-            foundGroups.add(roleGroupsBM[role]);
+          if (roleGroups.hasOwnProperty(role)) {
+            foundGroups.add(roleGroups[role]);
           }
         });
-
-        console.log("Found groups:", [...foundGroups]);
 
         const maxGroup = [...foundGroups].length > 0 ? Math.max(...foundGroups) : 0;
         const colorClass = `color-${maxGroup}`;
@@ -178,12 +123,6 @@ Loading roleGroupsBM.txt...
 
       document.getElementById('jsonOutput').value = JSON.stringify(resultJSON, null, 4);
     }
-
-    // Load files when DOM is ready
-    window.addEventListener('DOMContentLoaded', () => {
-      loadAdminAliases();
-      loadRoleGroupsBM();
-    });
   </script>
 </body>
 </html>
