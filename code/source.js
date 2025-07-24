@@ -1,9 +1,57 @@
-const versionSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/unnamed/bm-toolkit-desktop.min.js" // link to raw github article.
+// const versionSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/unnamed/bm-toolkit-desktop.min.js" // link to raw github article.
 const adminListSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json" // file is found in your repo by default.
 const customConfigSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json" // file is found in your repo by default.
 const updateRate = "65" // ms Overall rate to run the code at.
 const sets = {}; // globally accessible sets object
+const chrome_extension_version = "2.00"; // Version of the Chrome extension, used for compatibility checks
 
+(async () => {
+    try {
+        const response = await fetch(customConfigSource);
+        if (!response.ok) throw new Error(`🚫|Failed to fetch customConfigSource: ${response.statusText}`);
+        
+        const configData = await response.json();
+        const remoteVersion = configData.chrome_extension_version;
+
+        if (remoteVersion === chrome_extension_version) {
+            console.log(`✅|BMUS: Extension version (${chrome_extension_version}) is up to date.`);
+        } else {
+            console.warn(`⚠️|BMUS: Extension version mismatch. Local: ${chrome_extension_version}, Remote: ${remoteVersion}`);
+            showVersionMismatchWarning(chrome_extension_version, remoteVersion);
+        }
+    } catch (error) {
+        console.error("🚫|Error fetching or comparing version from customConfigSource:", error);
+        console.log("customConfigSource:", customConfigSource);
+    }
+})();
+
+function showVersionMismatchWarning(localVer, remoteVer) {
+    const warningBox = document.createElement("div");
+    warningBox.style.position = "fixed";
+    warningBox.style.top = "0";
+    warningBox.style.left = "0";
+    warningBox.style.width = "100%";
+    warningBox.style.height = "100%";
+    warningBox.style.backgroundColor = "rgba(255, 0, 0, 0.9)";
+    warningBox.style.color = "white";
+    warningBox.style.zIndex = "99999";
+    warningBox.style.display = "flex";
+    warningBox.style.flexDirection = "column";
+    warningBox.style.justifyContent = "center";
+    warningBox.style.alignItems = "center";
+    warningBox.style.fontSize = "2rem";
+    warningBox.style.fontWeight = "bold";
+    warningBox.style.textAlign = "center";
+    warningBox.innerHTML = `
+        🚨 EXTENSION VERSION MISMATCH 🚨<br><br>
+        <div style="font-size: 1.5rem;">
+            Local version: <span style="color: yellow">${localVer}</span><br>
+            Remote version: <span style="color: cyan">${remoteVer}</span><br><br>
+            Please update your extension!
+        </div>
+    `;
+    document.body.appendChild(warningBox);
+}
 
 async function fetchConfig() {
     const response = await fetch(customConfigSource);
@@ -194,8 +242,8 @@ async function runCornerButtons() {
             const buttons = [
                 {
                     id: "version",
-                    label: version,
-                    url: versionSource,
+                    label: "version",
+                    url: "versionSource",
                     backgroundColor: "black",
                     fontSize: "6pt",
                     textColor: "white"
@@ -620,6 +668,59 @@ async function runCBLCode() {
     }
 }
 
+// Start logic if edit page exists
+setInterval(() => {
+    if (document.querySelector('#RCONOrgEditPage')) {
+        (function () {
+            'use strict';
+
+            function injectRoleStyling() {
+                const listItems = document.querySelectorAll('ul.list-unstyled > li');
+                if (listItems.length === 0) {
+                    console.log("No role list items found.");
+                    return;
+                }
+
+                // Inject CSS only once
+                if (!document.getElementById('custom-role-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'custom-role-style';
+                    style.textContent = `
+                span.css-4ey69y span {
+                    white-space: pre;
+                    display: inline-block;
+                }
+            `;
+                    document.head.appendChild(style);
+                }
+
+                listItems.forEach(li => {
+                    if (!li.dataset.modified) {
+                        const firstTextNode = Array.from(li.childNodes).find(node =>
+                            node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ''
+                        );
+                        if (firstTextNode) {
+                            const separator = document.createTextNode(' ||| ');
+                            li.insertBefore(separator, firstTextNode.nextSibling);
+                        }
+
+                        const roleSpans = li.querySelectorAll('span.css-4ey69y span');
+                        roleSpans.forEach(span => {
+                            span.textContent = ` ${span.textContent.trim()} `;
+                        });
+
+                        li.dataset.modified = 'true';
+                    }
+                });
+
+                console.log("✅ role styling active.");
+            }
+
+            injectRoleStyling();
+        
+        })();
+    }
+}, 2000); // Ensure the code runs periodically
 
 function observeDOMChanges() {
     const observer = new MutationObserver((mutationsList, observer) => {
@@ -628,8 +729,9 @@ function observeDOMChanges() {
                 const targetElement1 = document.querySelector('.ReactVirtualized__Grid__innerScrollContainer');
                 const targetElement2 = document.querySelector('.container-fluid');
                 const targetElement3 = document.querySelector('.list-unstyled');
+                const rconEditPage = document.querySelector('#RCONOrgEditPage');
 
-                if (targetElement1 || targetElement2 || targetElement3) {
+                if (targetElement1 || targetElement2 || targetElement3 || rconEditPage) {
                     console.log("✅|BMUS: Target element detected. Starting code...");
                     observer.disconnect(); // Stop observing
 
@@ -637,7 +739,6 @@ function observeDOMChanges() {
                     runCornerButtons();
                     applyLogStyles();
                     runCBLCode();
-
                     break;
                 }
             }
@@ -650,4 +751,8 @@ function observeDOMChanges() {
         attributes: true
     });
 }
-observeDOMChanges();
+if (document.readyState === 'loading') {
+    document.addEventListener('load', observeDOMChanges);
+} else {
+    observeDOMChanges();
+}
