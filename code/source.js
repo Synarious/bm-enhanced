@@ -1,376 +1,88 @@
-// const versionSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/unnamed/bm-toolkit-desktop.min.js" // link to raw github article.
-const adminListSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json" // file is found in your repo by default.
-const customConfigSource = "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json" // file is found in your repo by default.
-const updateRate = "65" // ms Overall rate to run the code at.
-const sets = {}; // globally accessible sets object
-const chrome_extension_version = "2.00"; // Version of the Chrome extension, used for compatibility checks
+const EXTENSION_VERSION = "3.00";
+const bmORG_ID = 58064; // This is the organization ID for the BMUS organization. It is used to filter the ban list to only show bans from this organization.
+const SOURCES = {
+    adminList: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json",
+    customConfig: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json",
+};
+
+/*
+ *
+ * You shouldn't need to modify anything below this. Modify the json files in the config folder instead.
+ *
+ */
+
+
+// DOM query selectors.
+const SELECTORS = {
+    logContainer: '.ReactVirtualized__Grid__innerScrollContainer, .css-b7r34x',
+    logMessages: ".css-ym7lu8",
+    logPlayerNames: ".css-1ewh5td",
+    logActivityNames: ".css-fj458c",
+    logNoteFlags: ".css-he5ni6",
+    logServerNames: ".css-1ymmsk5",
+    logTimestamps: ".css-z1s6qn",
+    playerPage: "#RCONPlayerPage",
+    playerPageTitle: "#RCONPlayerPage h2",
+    playerInfoTable: '#RCONPlayerPage table.css-11gv980',
+    orgEditPage: '#RCONOrgEditPage',
+    orgRoleList: '#RCONOrgEditPage ul.list-unstyled > li',
+    banButton: 'a[href="/rcon/bans"]',
+    cornerButtonContainer: "#corner-button-container",
+    actionsContainer: "#bmus-actions-container",
+    copyInfoButton: "#copy-player-info-btn",
+    cblInfoContainer: "#CBL-info-container",
+};
+
+
 
 (async () => {
-    try {
-        const response = await fetch(customConfigSource);
-        if (!response.ok) throw new Error(`🚫|Failed to fetch customConfigSource: ${response.statusText}`);
-        
-        const configData = await response.json();
-        const remoteVersion = configData.chrome_extension_version;
 
-        if (remoteVersion === chrome_extension_version) {
-            console.log(`✅|BMUS: Extension version (${chrome_extension_version}) is up to date.`);
-        } else {
-            console.warn(`⚠️|BMUS: Extension version mismatch. Local: ${chrome_extension_version}, Remote: ${remoteVersion}`);
-            showVersionMismatchWarning(chrome_extension_version, remoteVersion);
-        }
-    } catch (error) {
-        console.error("🚫|Error fetching or comparing version from customConfigSource:", error);
-        console.log("customConfigSource:", customConfigSource);
-    }
-})();
+    // --- DEBUGGING CONFIGURATION ---
+    const DEBUG_LEVEL = 1; // 0=Off, 1=Basic, 2=Detailed, 3=Verbose
 
-function showVersionMismatchWarning(localVer, remoteVer) {
-    const warningBox = document.createElement("div");
-    warningBox.style.position = "fixed";
-    warningBox.style.top = "0";
-    warningBox.style.left = "0";
-    warningBox.style.width = "100%";
-    warningBox.style.height = "100%";
-    warningBox.style.backgroundColor = "rgba(255, 0, 0, 0.9)";
-    warningBox.style.color = "white";
-    warningBox.style.zIndex = "99999";
-    warningBox.style.display = "flex";
-    warningBox.style.flexDirection = "column";
-    warningBox.style.justifyContent = "center";
-    warningBox.style.alignItems = "center";
-    warningBox.style.fontSize = "2rem";
-    warningBox.style.fontWeight = "bold";
-    warningBox.style.textAlign = "center";
-    warningBox.innerHTML = `
-        🚨 EXTENSION VERSION MISMATCH 🚨<br><br>
-        <div style="font-size: 1.5rem;">
-            Local version: <span style="color: yellow">${localVer}</span><br>
-            Remote version: <span style="color: cyan">${remoteVer}</span><br><br>
-            Please update your extension!
-        </div>
-    `;
-    document.body.appendChild(warningBox);
-}
-
-async function fetchConfig() {
-    const response = await fetch(customConfigSource);
-    if (!response.ok) {
-        console.error("🚫|Failed to fetch configuration.");
-        return null;
-    }
-    return await response.json();
-}
-
-async function applyLogStyles() {
-    console.log("✅|BMUS: Running initial one-time code...");
-
-    // Fetch the config from the source
-    const config = await fetchConfig();
-    console.log("✅|BMUS: Loaded Configuration:", config);
-
-    // Destructure values from the config for easier use
-    const { sets, colors, serverName1, serverName2, updateRate } = config;
-
-    if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        // Mobile devices check (quick buttons disabled for mobile)
-    }
-
-    const updateLogic = async () => {
-        await new Promise(resolve => setTimeout(resolve, updateRate)); // Avoid overlap
-        const elements = document.querySelectorAll('.ReactVirtualized__Grid__innerScrollContainer, .css-b7r34x');
-        if (elements.length) {
-            applyTimeStamps();
-            logColoring(config);
-        }
-    };
-
-    const applyTimeStamps = () => {
-        document.querySelectorAll(".css-z1s6qn").forEach(element => {
-            const utcTime = element.getAttribute("datetime");
-            if (utcTime) {
-                const date = new Date(utcTime);
-                if (!isNaN(date.getTime())) {
-                    element.setAttribute("title", date.toLocaleString(undefined, { timeZoneName: 'short' }));
-                }
-            }
-        });
-    };
-
-    try {
-        const response = await fetch(adminListSource);
-        if (!response.ok) throw new Error(`🚫|Failed to fetch CONST adminListSource: ${response.statusText}`);
-        const data = await response.json();
-        sets.adminList1 = new Set(data.group1);
-        sets.adminList2 = new Set(data.group2);
-        sets.adminList3 = new Set(data.group3);
-        console.log("🛡️|BMUS: adminList1 updated:", sets.adminList1);
-        console.log("🛡️|BMUS: adminList2 updated:", sets.adminList2);
-        console.log("🛡️|BMUS: adminList3 updated:", sets.adminList3);
-    } catch (error) {
-        console.error("🚫|Error fetching admin list:", error);
-        console.log("adminListSource:", adminListSource);
-    }
-
-    const logColoring = () => {
-        const colorSets = {
-            messageLog: document.querySelectorAll(".css-ym7lu8"),
-            namePlayers: document.querySelectorAll(".css-1ewh5td"),
-            nameActivity: document.querySelectorAll(".css-fj458c"),
-            bmAdmin: document.querySelectorAll(".css-18s4qom"),
-            bmNoteFlag: document.querySelectorAll(".css-he5ni6"),
-            conflictElements: document.querySelectorAll(".css-1ymmsk5")
-        };
-
-        const applyColor = (elements, set, color) => {
-            elements.forEach((element) => {
-                for (let phrase of set) {
-                    if (element.textContent.includes(phrase)) {
-                        element.style.color = color;
-                        break;
-                    }
-                }
-            });
-        };
-
-        const adminApplyColor = (elements, phrases, color) => {
-            if (!elements || !phrases) return; // defensive
-
-            elements.forEach(el => {
-                // Convert Set or array to array
-                const phraseList = Array.isArray(phrases) ? phrases : Array.from(phrases);
-                phraseList.forEach(phrase => {
-                    const regex = new RegExp(`(?<=^|[\\s\\p{P}])${phrase.replace(/{/g, '\\{').replace(/}/g, '\\}')}(?=$|[\\s\\p{P}])`, "iu");
-                    if (regex.test(el.textContent)) {
-                        el.style.color = color;
-                    }
-                });
-            });
-        };
-        // Apply colors based on phrases (from config.sets and config.colors)
-        applyColor(colorSets.messageLog, sets.joinedServer, colors.cJoined);
-        applyColor(colorSets.messageLog, sets.leftServer, colors.cLeftServer);
-        applyColor(colorSets.messageLog, sets.actionList, colors.cModAction);
-        applyColor(colorSets.messageLog, sets.adminTerms, colors.cAdminAction);
-        applyColor(colorSets.messageLog, sets.factionGroup1, colors.cFactionGroup1);
-        applyColor(colorSets.messageLog, sets.factionGroup2, colors.cFactionGroup2);
-        applyColor(colorSets.messageLog, sets.factionGroup3, colors.cFactionGroup3);
-        applyColor(colorSets.messageLog, sets.teamKilled, colors.cTeamKilled);
-        applyColor(colorSets.messageLog, sets.trackedTriggers, colors.cTracked);
-        applyColor(colorSets.messageLog, sets.grayedOut, colors.cGrayed);
-
-
-        // Apply colors to player names (for admins)
-        adminApplyColor(colorSets.nameActivity, sets.adminList1, colors.cStaffGroup1);
-        adminApplyColor(colorSets.namePlayers, sets.adminList1, colors.cStaffGroup1);
-        adminApplyColor(colorSets.nameActivity, sets.adminList2, colors.cStaffGroup2);
-        adminApplyColor(colorSets.namePlayers, sets.adminList2, colors.cStaffGroup2);
-        adminApplyColor(colorSets.nameActivity, sets.adminList3, colors.cStaffGroup3);
-        adminApplyColor(colorSets.namePlayers, sets.adminList3, colors.cStaffGroup3);
-
-
-        // Changes Flag Color For Note On Player List
-        colorSets.bmNoteFlag.forEach((element) => {
-            element.style.color = colors.cNoteColorIcon;
-        });
-
-        // Changes server name colors in banlist
-        colorSets.conflictElements.forEach((element) => {
-            if (element.textContent.includes(serverName1)) {
-                element.style.color = "green";
-            } else if (element.textContent.includes(serverName2)) {
-                element.style.color = "yellow";
-            }
-        });
-    };
-
-    // Using `requestAnimationFrame` for smooth updates
-    const updateLoop = () => {
-        updateLogic().then(() => requestAnimationFrame(updateLoop));
-    };
-
-    updateLoop(); // Start the loop
-}
-
-function injectCSS() {
-    const styles = {
-        blockMenu: ".navbar-toggle { display: block !important; visibility: visible !important; padding-left: 15%; background: rgb(34, 34, 34);}",
-        buttonitself: ".navbar-toggle { display: block !important; visibility: visible !important; padding-left: 15%; background: rgb(34, 34, 34);}",
-        removeLogo: ".css-1nxi32t { width: 1px;}",
-        disableRCON: ".css-1xkypod { position: unset !important; }",
-        banMenuWidthSmall: "@media (max-width: 1099px) and (min-width: 950px) { .css-mxzvlz { width:100% !important } }",
-        banMenuWidth: "@media (max-width: 949px) { .css-mxzvlz { width:70% !important } }",
-        banInnerMenuWidth: ".css-e70h1 { max-width: 1000px !important;}",
-        banMenuReason: "{.css-e70h1 {width: 50em;}",
-        mainWidth: ".main { width: 90% !important; margin-left: 4em; margin-right: 4em; } @media (max-width: 768px) { .main { width: inherit !important; }}",
-        flagList: ".css-mxzvlz { padding-left: .5em; width: 20%; display: inline-block;}",
-        flagHideDetails: ".css-110bni0 {font-size: 0px;}",
-        flagListMedium: "@media (max-width: 1099px) and (min-width: 950px) { .css-mxzvlz { width: 33% !important; } }",
-        flagListSmall: "@media (max-width: 949px) { .css-mxzvlz { width: 50% !important; } }",
-        cblButtonStyle: "@media (max-width: 768px) { .CBL-Button {left: 16em !important; } }"
-    };
-
-    // Create a <style> element and inject the CSS into the page
-    const styleElement = document.createElement("style");
-    styleElement.innerHTML = Object.values(styles).join("\n");
-
-    // Append the <style> element to the <head> of the document
-    document.head.appendChild(styleElement);
-}
-
-injectCSS();
-
-async function runCornerButtons() {
-    console.log("✅|BMUS: Running corner buttons.");
-
-    const updateRate = 300; // Delay in milliseconds between executions
-    async function updateLogicSlow() {
-        // Avoid overlapping by waiting for the previous execution to finish
-        await new Promise(resolve => setTimeout(resolve, updateRate));
-
-
-        // Start CBL & SteamID of section ------ >
-        if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-            // console.log("User is on a mobile device. player buttons disabled");
-        } else { }
-
-        function cornerButtons() {
-            // Check if the corner button container already exists
-            const existingButtonContainer = document.getElementById("corner-button-container");
-            if (existingButtonContainer) return; // Exit if the container already exists
-
-            const buttons = [
-                {
-                    id: "version",
-                    label: "version",
-                    url: "versionSource",
-                    backgroundColor: "black",
-                    fontSize: "6pt",
-                    textColor: "white"
-                }
-            ];
-
-            const buttonContainer = Object.assign(document.createElement("div"), {
-                id: "corner-button-container", // Give the container a unique ID
-                style: "position: fixed; bottom: 0px; right: 0em; z-index: 99999;"
-            });
-            document.body.appendChild(buttonContainer);
-
-            buttons.forEach(({
-                id,
-                label,
-                url,
-                backgroundColor,
-                textColor
-            }) => {
-                // Check if the button already exists
-                if (document.getElementById(id)) return; // Skip creating button if it exists
-
-                const button = Object.assign(document.createElement("input"), {
-                    type: "button",
-                    id,
-                    value: label,
-                    style: `width: 35px; padding: 2px; font-size: 7pt; background: ${backgroundColor}; color: ${textColor}; border: none; border-radius: 3px;`,
-                });
-                buttonContainer.appendChild(button);
-            });
-        }
-        cornerButtons();
-    }
-
-    // Use recursive setTimeout instead of setInterval to handle async properly
-    function runUpdate() {
-        updateLogicSlow().then(() => {
-            setTimeout(runUpdate, updateRate); // Call again after updateRate time
-        });
-    }
-
-    // Start the first execution
-    runUpdate();
-}
-
-async function runBanUpdate() {
-    console.log("✅|BMUS: Running ban button update...");
-
-    const updateRate = 300; // Delay in milliseconds between executions
-
-    // Ban button update function
-    function banButtonUpdate() {
-        const banButton = document.querySelector('a[href="/rcon/bans"]');
-        if (banButton) {
-            banButton.addEventListener("click", function (event) {
-                event.preventDefault(); // Prevents default navigation behavior
-                window.location.href = "/rcon/bans?filter%5Borganization%5D=58064";
-            });
+    /**
+     * Custom logger that respects the DEBUG_LEVEL.
+     * @param {number} level - The debug level of this message.
+     * @param {...any} args - The content to log.
+     */
+    function log(level, ...args) {
+        if (level <= DEBUG_LEVEL) {
+            console.log('BMUS_LOG |', ...args);
         }
     }
 
-    async function updateLogicSlow() {
-        // Avoid overlapping by waiting for the previous execution to finish
-        await new Promise(resolve => setTimeout(resolve, updateRate));
-        banButtonUpdate(); // Call the function to update the ban button
+    const state = {
+        config: null,
+        adminLists: { group1: new Set(), group2: new Set(), group3: new Set() },
+        page: { isPlayerPage: false, isLogView: false, isOrgEditPage: false }
+    };
+
+    async function fetchJSON(url, sourceName, options = {}) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) { throw new Error(`HTTP error! Status: ${response.status} for ${sourceName}`); }
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
+        } catch (error) {
+            console.error(`🚫|BMUS: Failed to fetch ${sourceName}.`, error);
+            return null;
+        }
     }
 
-    // Use recursive setTimeout instead of setInterval to handle async properly
-    function runUpdate() {
-        updateLogicSlow().then(() => {
-            setTimeout(runUpdate, updateRate); // Call again after updateRate time
-        });
-    }
-
-    // Start the first execution
-    runUpdate();
-}
-
-function copyButton() {
-    'use strict';
-
-    function monitorPage() {
-        const observer = new MutationObserver(() => {
-            const playerPageExists = document.querySelector("#RCONPlayerPage");
-            const existingButton = document.querySelector("#copy-player-info-btn");
-
-            if (playerPageExists && !existingButton) {
-                waitForTableAndInject();
-            } else if (!playerPageExists && existingButton) {
-                existingButton.remove();
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }
-
-    function waitForTableAndInject() {
-        const interval = setInterval(() => {
-            const table = document.querySelector('tbody');
-            const playerPageExists = document.querySelector("#RCONPlayerPage");
-            const existingButton = document.querySelector("#copy-player-info-btn");
-
-            if (!playerPageExists) {
-                clearInterval(interval);
-                return;
-            }
-
-            if (table && !existingButton) {
-                clearInterval(interval);
-                injectButton();
-            }
-        }, 500);
-    }
-
-    function injectButton() {
-        const btn = Object.assign(document.createElement('button'), {
-            id: 'copy-player-info-btn',
-            textContent: '📋 Copy',
-            title: 'Copy Player Info',
-            style: `
+    function injectGlobalCSS() {
+        if (document.getElementById('bmus-global-styles')) return;
+        const styles = `
+            /* Wrapper for Copy and CBL buttons */
+            #bmus-actions-container {
                 position: absolute;
                 top: 14.35em;
-                left: 26em;
+                left: 19em;
                 z-index: 1000;
+                display: flex;
+                align-items: center;
+            }
+            /* Copy button styles */
+            #copy-player-info-btn {
                 padding: 4px;
                 width: 75px;
                 background: rgb(0, 123, 255);
@@ -378,381 +90,359 @@ function copyButton() {
                 border: none;
                 border-radius: 5px;
                 cursor: pointer;
-            `
-        });
-        btn.addEventListener('click', copyPlayerInfo);
-        document.body.appendChild(btn);
-    }
-
-    function copyPlayerInfo() {
-        const info = [];
-
-        const nameRow = [...document.querySelectorAll('td[data-title="Type"]')]
-            .find(td => td.textContent.includes("Name"))?.parentElement;
-        const name = nameRow?.querySelector('td[data-title="Identifier"] span')?.textContent.trim();
-        if (name) info.push(`Name: ${name}`);
-
-        const steamRow = [...document.querySelectorAll('td[data-title="Type"]')]
-            .find(td => td.textContent.includes("Steam ID"))?.parentElement;
-        const steamId = steamRow?.querySelector('td[data-title="Identifier"] span')?.textContent.trim();
-        if (steamId) info.push(`SteamID: ${steamId}`);
-
-        const reforgerRow = [...document.querySelectorAll('td[data-title="Type"]')]
-            .find(td => td.textContent.includes("Reforger ID"))?.parentElement;
-        const reforgerId = reforgerRow?.querySelector('td[data-title="Identifier"] span')?.textContent.trim();
-        if (reforgerId) info.push(`Reforger ID: ${reforgerId}`);
-
-        const eosRow = [...document.querySelectorAll('td[data-title="Type"]')]
-            .find(td => td.textContent.includes("EOS ID"))?.parentElement;
-        const eosId = eosRow?.querySelector('td[data-title="Identifier"] span')?.textContent.trim();
-        if (eosId) info.push(`EOS ID: ${eosId}`);
-
-        const currentUrl = window.location.href;
-        if (currentUrl) info.push(`BM: <${currentUrl}>`);
-
-        if (info.length === 0) {
-            showToast("⚠️ No player info found.");
-            return;
-        }
-
-        const combined = info.join('\n');
-        navigator.clipboard.writeText(combined).then(() => {
-            showToast("✅|Player info copied!");
-        }).catch(err => {
-            console.error("🚫|Clipboard copy failed", err);
-            showToast("🚫|Failed to copy.");
-        });
-    }
-
-    function showToast(msg) {
-        const toast = document.createElement('div');
-        toast.textContent = msg;
-        toast.style.position = 'fixed';
-        toast.style.bottom = '20px';
-        toast.style.right = '20px';
-        toast.style.background = '#333';
-        toast.style.color = '#fff';
-        toast.style.padding = '10px 15px';
-        toast.style.borderRadius = '4px';
-        toast.style.zIndex = 10000;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
-
-    // Start the logic
-    monitorPage();
-}
-
-// Call the function
-copyButton();
-
-async function runCBLCode() {
-    console.log("✅|BMUS: Running CBL one-time code.");
-
-    // Add styles for buttons
-    addStyles();
-
-    // Start of CBL logic
-    if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        console.log("User is on a mobile device. Quick buttons disabled");
-    }
-
-    let isFetching = false;
-
-    // Function to ensure an element exists and create it if not
-    function ensureElementExists(elementId, creationFunction) {
-        if (!document.getElementById(elementId)) {
-            creationFunction();
-        }
-    }
-
-    // Function to remove an element by ID
-    function removeElementById(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.remove();
-        }
-    }
-
-    // Fetches Steam user data
-    async function fetchSteamUserData(steamID) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const maxRetries = 1;
-        const retryDelay = 3000;
-        let attempt = 0;
-        let success = false;
-
-        while (attempt < maxRetries && !success) {
-            try {
-                attempt++;
-                console.log(`CBL API Query ${attempt}: Fetching user data for SteamID ${steamID}`);
-
-                const graphqlEndpoint = "https://communitybanlist.com/graphql"; // Move graphqlEndpoint inside the function
-
-                const response = await fetch(graphqlEndpoint, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        query: `
-                        query Search($id: String!) {
-                            steamUser(id: $id) {
-                                riskRating
-                                activeBans: bans(orderBy: "created", orderDirection: DESC, expired: false) {
-                                    edges { node { id } }
-                                }
-                                expiredBans: bans(orderBy: "created", orderDirection: DESC, expired: true) {
-                                    edges { node { id } }
-                                }
-                            }
-                        }`, variables: { id: steamID }
-                    })
-                });
-
-                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status} (${response.statusText})`);
-
-                const data = await response.json();
-                const user = data.data.steamUser;
-                const riskRating = (user?.riskRating ?? 0);
-                const activeBansCount = user?.activeBans?.edges?.length ?? 0;
-                const expiredBansCount = user?.expiredBans?.edges?.length ?? 0;
-
-                displayUserData(riskRating, activeBansCount, expiredBansCount);
-                success = true;
-
-            } catch (error) {
-                console.error(`Attempt ${attempt} failed: ${error.message}`);
-                if (attempt < maxRetries) {
-                    console.log(`Retrying in ${retryDelay / 1000} seconds...`);
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                } else {
-                    displayUserData("?", "?", "?");
-                    success = true;
-                }
             }
-        }
-    }
-
-    function displayUserData(riskRating, activeBansCount, expiredBansCount) {
-        const CBL = document.createElement("div");
-        CBL.id = "CBL-info";
-        CBL.classList.add("CBL-Button");
-        CBL.style = `
-        display: inline-block; margin-left: 10px; padding: 4px 8px; background: #000000bd; color: white;
-        border-radius: 5px; font-size: 14px; font-weight: bold;
-    `;
-
-        riskRating = riskRating ?? 0;
-        let riskColor = (riskRating >= 1 && riskRating <= 5) ? "orange" : (riskRating > 5 ? "red" : "white");
-
-        CBL.innerHTML = `
-        <span style="color: ${riskColor};">CBL: ${riskRating}/10</span>
-        <br>
-        <span style="font-size: 12px;">Act: ${activeBansCount} / Exp: ${expiredBansCount}</span>
-    `;
-
-        const targetSpan = document.querySelector("#RCONPlayerPage > div > div:nth-child(1) > div:nth-child(1) > h2 > span");
-        if (targetSpan) {
-            targetSpan.after(CBL);
-        } else {
-            console.warn("CBL: Target span not found. Appending to body as fallback.");
-            document.body.appendChild(CBL); // Fallback
-        }
-    }
-
-    // Creates the button to open CBL page for the user
-    function createCopyButton() {
-        const copyButton = document.createElement("button");
-        copyButton.id = "copy-player-info-btn";
-        copyButton.textContent = "Copy Info";
-        copyButton.classList.add("copy-info-btn-style");
-
-        // Inline styles instead of absolute positioning
-        copyButton.style = `
-        margin-left: 10px;
-        padding: 5px 10px;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        font-weight: bold;
-        cursor: pointer;
-    `;
-
-        const targetSpan = document.querySelector("#RCONPlayerPage > div > div:nth-child(1) > div:nth-child(1) > h2 > span");
-        if (targetSpan) {
-            targetSpan.after(copyButton);
-        } else {
-            console.warn("CBL: Target span not found for copy button. Appending to body.");
-            document.body.appendChild(copyButton); // fallback
-        }
-
-        // Example click logic – adjust as needed
-        copyButton.addEventListener("click", () => {
-            const steamID = getInnerTextByTitle("765", "SteamID MISSING?");
-            const riskInfo = document.getElementById("CBL-info")?.innerText || "Risk info unavailable";
-            const combinedInfo = `SteamID: ${steamID}\n${riskInfo}`;
-
-            navigator.clipboard.writeText(combinedInfo).then(() => {
-                alert("Player info copied!");
-            }).catch(err => {
-                console.error("Copy failed:", err);
-            });
-        });
-    }
-
-    // Inject styles dynamically for buttons
-    function addStyles() {
-        const styles = `
-            .open-url-button-style {
-                width: 100px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
-                position: absolute; top: 11.25em; z-index: 99999; left: 13em; background-color: #e5a411;
-                border: none; border-radius: 1em;
+            /* CBL container styles - now for an <a> tag */
+            #CBL-info-container {
+                margin-left: 10px;
+                padding: 4px 8px;
+                background: #000000bd;
+                color: white; /* Default color */
+                border-radius: 5px;
+                font-size: 14px;
+                font-weight: bold;
+                white-space: nowrap;
+                text-decoration: none; /* Remove underline */
+                transition: filter 0.2s;
             }
-            .open-url-button-style:hover { background-color: #ffb500; }
-            @media (max-width: 768px) { .open-url-button-style { left: 8em; } }
+            #CBL-info-container:hover {
+                filter: brightness(1.2); /* Add a hover effect */
+            }
+            /* Other general styles */
+            .main { width: 90% !important; margin-left: 4em; margin-right: 4em; } @media (max-width: 768px) { .main { width: inherit !important; } }
+            .css-1nxi32t { width: 1px; } .css-1xkypod { position: unset !important; }
         `;
-
         const styleSheet = document.createElement("style");
-        styleSheet.type = "text/css";
-        styleSheet.innerText = styles;
+        styleSheet.id = 'bmus-global-styles';
+        styleSheet.textContent = styles;
         document.head.appendChild(styleSheet);
+        log(2, 'Global CSS injected.');
     }
 
-    // Helper function to get inner text of elements by title
-    function getInnerTextByTitle(titlePart, defaultValue) {
-        return document.querySelector(`[title*="${titlePart}"]`)?.innerText || defaultValue;
+    function showVersionMismatchWarning(localVer, remoteVer, message) {
+        const warningBox = document.createElement("div");
+        Object.assign(warningBox.style, { position: "fixed", top: "0", left: "0", width: "100%", height: "100%", backgroundColor: "rgba(19, 19, 19, 0.85)", color: "white", zIndex: "99999", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", fontSize: "2rem", fontWeight: "bold", textAlign: "center", backdropFilter: "blur(5px)" });
+        warningBox.innerHTML = `<div>🚨 Battlemetrics - Chrome Extension Version Warning 🚨<br><br><div style="font-size: 1.5rem; max-width: 800px;">${message}</div><br><br>Local version: <span style="color: yellow">${localVer}</span> /// Remote version: <span style="color: cyan">${remoteVer}</span><br><br><button id="closeWarningBtn" style="padding: 10px 20px; font-size: 1rem; background: white; color: red; border: none; cursor: pointer; border-radius: 5px;">Ignore Warning & Close</button></div>`;
+        document.body.appendChild(warningBox);
+        document.getElementById("closeWarningBtn").addEventListener("click", () => warningBox.remove());
     }
 
-    // Main logic for updating
-    async function updateLogic() {
-        await new Promise(resolve => setTimeout(resolve, updateRate));
+    /**
+     * THIS FUNCTION HAS BEEN CORRECTED
+     */
+    function updateLogView(scope = document) {
+        if (!state.config) return;
+        const { sets, colors, serverName1, serverName2, adminLists } = state.config;
 
-        const playerPageExists = document.querySelector("#RCONPlayerPage");
-        if (playerPageExists) {
-            ensureElementExists("CBL-info", () => {
-                const pSteamID = getInnerTextByTitle("765", "SteamID MISSING?");
-                if (pSteamID && pSteamID !== "SteamID MISSING?") {
-                    runDataFetching(pSteamID); // Pass SteamID to fetch data
-                }
-            });
-        } else {
-            removeElementById("open-url-button");
-            removeElementById("CBL-info");
-        }
-    }
+        const allElements = scope.querySelectorAll(`${SELECTORS.logMessages}, ${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`);
+        const adminColorRules = [
+            { list: adminLists.group1, color: colors.cStaffGroup1 },
+            { list: adminLists.group2, color: colors.cStaffGroup2 },
+            { list: adminLists.group3, color: colors.cStaffGroup3 }
+        ];
+        const messageColorRules = [
+            { set: sets.joinedServer, color: colors.cJoined },
+            { set: sets.leftServer, color: colors.cLeftServer },
+            { set: sets.actionList, color: colors.cModAction },
+            { set: sets.adminTerms, color: colors.cAdminAction },
+            { set: sets.factionGroup1, color: colors.cFactionGroup1 },
+            { set: sets.factionGroup2, color: colors.cFactionGroup2 },
+            { set: sets.factionGroup3, color: colors.cFactionGroup3 },
+            { set: sets.teamKilled, color: colors.cTeamKilled },
+            { set: sets.trackedTriggers, color: colors.cTracked },
+            { set: sets.grayedOut, color: colors.cGrayed },
+        ];
 
-    // Continuously run updateLogic using setInterval
-    setInterval(updateLogic, updateRate);
+        allElements.forEach(el => {
+            if (el.dataset.bmusColored) return; // Single flag to prevent any re-processing
 
-    // Start logic if player page exists
-    if (document.querySelector('#RCONPlayerPage')) {
-        createCopyButton();
-    }
+            let colorApplied = false;
 
-    // Run data fetching function when needed
-    async function runDataFetching(steamID) {
-        if (isFetching) {
-            console.log("CBL script already in progress... Skipping...");
-            return;
-        }
-
-        isFetching = true;
-        try {
-            await fetchSteamUserData(steamID);
-        } catch (error) {
-            console.error("Error fetching Steam user data:", error);
-        } finally {
-            isFetching = false;
-        }
-    }
-}
-
-// Start logic if edit page exists
-setInterval(() => {
-    if (document.querySelector('#RCONOrgEditPage')) {
-        (function () {
-            'use strict';
-
-            function injectRoleStyling() {
-                const listItems = document.querySelectorAll('ul.list-unstyled > li');
-                if (listItems.length === 0) {
-                    console.log("No role list items found.");
-                    return;
-                }
-
-                // Inject CSS only once
-                if (!document.getElementById('custom-role-style')) {
-                    const style = document.createElement('style');
-                    style.id = 'custom-role-style';
-                    style.textContent = `
-                span.css-4ey69y span {
-                    white-space: pre;
-                    display: inline-block;
-                }
-            `;
-                    document.head.appendChild(style);
-                }
-
-                listItems.forEach(li => {
-                    if (!li.dataset.modified) {
-                        const firstTextNode = Array.from(li.childNodes).find(node =>
-                            node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ''
-                        );
-                        if (firstTextNode) {
-                            const separator = document.createTextNode(' ||| ');
-                            li.insertBefore(separator, firstTextNode.nextSibling);
+            // Priority 1: Check for admin names if the element is a name element
+            if (el.matches(`${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`)) {
+                for (const rule of adminColorRules) {
+                    for (const admin of rule.list) {
+                        if (el.textContent.includes(admin)) {
+                            el.style.color = rule.color;
+                            colorApplied = true;
+                            break;
                         }
-
-                        const roleSpans = li.querySelectorAll('span.css-4ey69y span');
-                        roleSpans.forEach(span => {
-                            span.textContent = ` ${span.textContent.trim()} `;
-                        });
-
-                        li.dataset.modified = 'true';
                     }
-                });
-
-                console.log("✅ role styling active.");
+                    if (colorApplied) break;
+                }
             }
 
-            injectRoleStyling();
-        
-        })();
+            // Priority 2: Check for general messages if no admin color was applied
+            if (!colorApplied && el.matches(SELECTORS.logMessages)) {
+                for (const rule of messageColorRules) {
+                    for (const phrase of rule.set) {
+                        if (el.textContent.includes(phrase)) {
+                            el.style.color = rule.color;
+                            colorApplied = true;
+                            break;
+                        }
+                    }
+                    if (colorApplied) break;
+                }
+            }
+
+            if (colorApplied) {
+                el.dataset.bmusColored = 'true';
+            }
+        });
+
+        // Handle other, non-conflicting elements separately
+        scope.querySelectorAll(SELECTORS.logTimestamps).forEach(element => {
+            if (element.title) return;
+            const utcTime = element.getAttribute("datetime");
+            if (utcTime) {
+                const date = new Date(utcTime);
+                if (!isNaN(date.getTime())) {
+                    element.title = date.toLocaleString(undefined, { timeZoneName: 'short' });
+                }
+            }
+        });
+
+        scope.querySelectorAll(SELECTORS.logServerNames).forEach(element => {
+            if (element.dataset.serverColored) return;
+            if (element.textContent.includes(serverName1)) element.style.color = "green";
+            else if (element.textContent.includes(serverName2)) element.style.color = "yellow";
+            element.dataset.serverColored = 'true';
+        });
+
+        scope.querySelectorAll(SELECTORS.logNoteFlags).forEach(element => element.style.color = colors.cNoteColorIcon);
     }
-}, 2000); // Ensure the code runs periodically
 
-function observeDOMChanges() {
-    const observer = new MutationObserver((mutationsList, observer) => {
-        for (const mutation of mutationsList) {
-            if (mutation.type === 'childList' || mutation.type === 'attributes') {
-                const targetElement1 = document.querySelector('.ReactVirtualized__Grid__innerScrollContainer');
-                const targetElement2 = document.querySelector('.container-fluid');
-                const targetElement3 = document.querySelector('.list-unstyled');
-                const rconEditPage = document.querySelector('#RCONOrgEditPage');
 
-                if (targetElement1 || targetElement2 || targetElement3 || rconEditPage) {
-                    console.log("✅|BMUS: Target element detected. Starting code...");
-                    observer.disconnect(); // Stop observing
-
-                    runBanUpdate();
-                    runCornerButtons();
-                    applyLogStyles();
-                    runCBLCode();
+    async function setupPlayerPage() {
+        log(2, 'setupPlayerPage() called.');
+        if (state.page.isPlayerPage) return;
+        const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
+        if (!identifiersTable) {
+            log(2, 'setupPlayerPage: Identifiers table NOT found yet.');
+            return;
+        }
+        log(1, 'Identifiers table found. Proceeding with player page setup.');
+        let steamID = null;
+        const rows = identifiersTable.querySelectorAll('tbody > tr');
+        log(2, `Found ${rows.length} identifier rows. Searching for valid Steam ID...`);
+        for (const row of rows) {
+            const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
+            const valueEl = row.querySelector('td[data-title="Identifier"] span');
+            if (typeEl && valueEl && typeEl.textContent.trim() === "Steam ID") {
+                const potentialID = valueEl.textContent.trim();
+                if (potentialID.startsWith("765")) {
+                    steamID = potentialID;
+                    log(2, `Valid Steam ID found for CBL: ${steamID}`);
                     break;
                 }
             }
         }
-    });
+        state.page.isPlayerPage = true;
+        let actionsContainer = document.querySelector(SELECTORS.actionsContainer);
+        if (!actionsContainer) {
+            log(2, 'Creating actions container.');
+            actionsContainer = document.createElement('div');
+            actionsContainer.id = SELECTORS.actionsContainer.substring(1);
+            document.body.appendChild(actionsContainer);
+        }
+        if (!document.querySelector(SELECTORS.copyInfoButton)) {
+            log(2, 'Creating Copy button.');
+            const btn = document.createElement('button');
+            btn.id = SELECTORS.copyInfoButton.substring(1);
+            btn.textContent = '📋 Copy';
+            btn.title = 'Copy Player Info';
+            btn.addEventListener('click', copyPlayerInfo);
+            actionsContainer.appendChild(btn);
+        }
+        if (!document.querySelector(SELECTORS.cblInfoContainer)) {
+            log(2, 'Creating CBL element...');
+            if (steamID) {
+                const cblLink = document.createElement("a");
+                cblLink.id = SELECTORS.cblInfoContainer.substring(1);
+                cblLink.href = `https://communitybanlist.com/search/${steamID}`;
+                cblLink.target = "_blank";
+                cblLink.rel = "noopener noreferrer";
+                cblLink.title = `View ${steamID} on Community Ban List`;
+                cblLink.innerHTML = '<span>Loading CBL...</span>';
+                actionsContainer.appendChild(cblLink);
+                log(2, 'Calling fetchCBLData().');
+                await fetchCBLData(steamID, cblLink);
+            } else {
+                const cblDiv = document.createElement("div");
+                cblDiv.id = SELECTORS.cblInfoContainer.substring(1);
+                cblDiv.innerHTML = '<span>CBL: SteamID not found</span>';
+                actionsContainer.appendChild(cblDiv);
+                log(1, "Warning: No valid SteamID starting with '765' was found for CBL.");
+            }
+        }
+    }
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true
-    });
-}
-if (document.readyState === 'loading') {
-    document.addEventListener('load', observeDOMChanges);
-} else {
-    observeDOMChanges();
-}
+    function copyPlayerInfo() {
+        log(2, '--- Starting copyPlayerInfo ---');
+        const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
+        if (!identifiersTable) {
+            console.error("BMUS_ERROR: Could not find identifiers table for copy action.");
+            return;
+        }
+        const rows = identifiersTable.querySelectorAll('tbody > tr');
+        let allIdentifiers = [];
+        rows.forEach((row, index) => {
+            const valueEl = row.querySelector('td[data-title="Identifier"] span');
+            const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
+            const timeEl = row.querySelector('td[data-title="Last Seen"] time');
+            if (valueEl && typeEl && timeEl) {
+                allIdentifiers.push({ value: valueEl.textContent.trim(), type: typeEl.textContent.trim(), timestamp: new Date(timeEl.getAttribute('datetime')) });
+            } else {
+                log(2, `Warning: Failed to parse row ${index}.`);
+            }
+        });
+        log(3, 'Parsed all identifiers:', allIdentifiers);
+        allIdentifiers.sort((a, b) => b.timestamp - a.timestamp);
+        log(3, 'Sorted all identifiers by timestamp:', allIdentifiers);
+        const finalIdentifiers = new Map();
+        for (const id of allIdentifiers) {
+            if (!finalIdentifiers.has(id.type)) {
+                finalIdentifiers.set(id.type, id.value);
+            }
+        }
+        log(2, 'Selected unique, most recent identifiers:', finalIdentifiers);
+        const infoToCopy = [];
+        const desiredOrder = ["Name", "BattlEye GUID", "Steam ID", "EOS ID"];
+        for (const type of desiredOrder) {
+            if (finalIdentifiers.has(type)) {
+                infoToCopy.push(`${type}: ${finalIdentifiers.get(type)}`);
+            }
+        }
+        infoToCopy.push(`BM: <${window.location.href}>`);
+        const finalString = infoToCopy.join('\n');
+        log(3, "--- Final string to be copied: ---\n" + finalString);
+        navigator.clipboard.writeText(finalString)
+            .then(() => log(1, "✅ Player info copied!"))
+            .catch(err => console.error("🚫|BMUS: Clipboard copy failed", err));
+    }
+
+    async function fetchCBLData(steamID, container) {
+        const graphqlEndpoint = "https://communitybanlist.com/graphql";
+        const query = {
+            query: `query Search($id: String!) { steamUser(id: $id) { riskRating, activeBans: bans(expired: false) { edges { node { id } } }, expiredBans: bans(expired: true) { edges { node { id } } } } }`,
+            variables: { id: steamID }
+        };
+        const fetchOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(query) };
+        const data = await fetchJSON(graphqlEndpoint, "CBL GraphQL", fetchOptions);
+        log(3, 'CBL Response Data:', data);
+        if (data?.data?.steamUser) {
+            const user = data.data.steamUser;
+            const riskRating = user.riskRating ?? 0;
+            const activeBans = user.activeBans?.edges?.length ?? 0;
+            const expiredBans = user.expiredBans?.edges?.length ?? 0;
+            const riskColor = riskRating > 5 ? "red" : riskRating > 0 ? "orange" : "white";
+            container.innerHTML = `<span style="color: ${riskColor};">CBL: ${riskRating}/10</span> | <span>Act: ${activeBans}</span> | <span>Exp: ${expiredBans}</span>`;
+        } else {
+            container.innerHTML = '<span>CBL: Not Found</span>';
+        }
+    }
+
+    function setupBanButton() {
+        const banButton = document.querySelector(SELECTORS.banButton);
+        if (banButton && !banButton.dataset.modified) {
+            log(2, 'Found original ban button. Overriding its click behavior...');
+            const newBanButton = banButton.cloneNode(true);
+            newBanButton.href = "/rcon/bans?filter%5Borganization%5D=" + bmORG_ID;
+            newBanButton.dataset.modified = 'true';
+            banButton.parentNode.replaceChild(newBanButton, banButton);
+            log(1, 'Ban button link successfully overridden.');
+        }
+    }
+
+    function updateOrgEditPage() {
+        if (!state.page.isOrgEditPage) {
+            log(2, 'Setting up Organization Edit Page...');
+            state.page.isOrgEditPage = true;
+        }
+        document.querySelectorAll(SELECTORS.orgRoleList).forEach(li => {
+            if (li.dataset.modified) return;
+            const firstTextNode = Array.from(li.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '');
+            if (firstTextNode) {
+                li.insertBefore(document.createTextNode(' ||| '), firstTextNode.nextSibling);
+            }
+            li.dataset.modified = 'true';
+        });
+    }
+
+    function setupCornerButtons() {
+        if (document.querySelector(SELECTORS.cornerButtonContainer)) return;
+        const container = document.createElement("div");
+        container.id = SELECTORS.cornerButtonContainer.substring(1);
+        Object.assign(container.style, { position: "fixed", bottom: "10px", right: "10px", zIndex: "99999" });
+        const versionButton = document.createElement("button");
+        versionButton.textContent = `v${EXTENSION_VERSION}`;
+        Object.assign(versionButton.style, { background: "black", color: "white", border: "1px solid white", borderRadius: "5px", padding: "5px", fontSize: "10px", cursor: "pointer" });
+        container.appendChild(versionButton);
+        document.body.appendChild(container);
+        log(2, 'Corner buttons set up.');
+    }
+
+    function handleDOMChange(mutationsList) {
+        log(3, 'DOM Change Detected, running checks...');
+        for (const mutation of mutationsList) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.matches(SELECTORS.logContainer) || node.querySelector(SELECTORS.logMessages)) {
+                            updateLogView(node);
+                        }
+                    }
+                });
+            }
+        }
+        const onPlayerPage = document.querySelector(SELECTORS.playerPage);
+        if (onPlayerPage) {
+            setupPlayerPage();
+        } else {
+            if (state.page.isPlayerPage) {
+                log(1, 'Left player page, cleaning up.');
+                document.querySelector(SELECTORS.actionsContainer)?.remove();
+                state.page.isPlayerPage = false;
+            }
+        }
+        if (document.querySelector(SELECTORS.orgEditPage)) {
+            updateOrgEditPage();
+        } else {
+            if (state.page.isOrgEditPage) {
+                state.page.isOrgEditPage = false;
+            }
+        }
+        setupBanButton();
+    }
+
+    async function main() {
+        log(1, `🚀 BMUS v${EXTENSION_VERSION}: Initializing...`);
+        const [customConfig, adminList] = await Promise.all([fetchJSON(SOURCES.customConfig, "Custom Config"), fetchJSON(SOURCES.adminList, "Admin List")]);
+        if (!customConfig) {
+            showVersionMismatchWarning(EXTENSION_VERSION, "Error", `Could not load required configuration from:\n${SOURCES.customConfig}`);
+            return;
+        }
+        // Attach the adminList to the state so updateLogView can access it
+        state.config = customConfig;
+        state.config.adminLists = adminList ? adminList : { group1: [], group2: [], group3: [] };
+
+        const remoteVersion = state.config?.chrome_extension_version;
+        if (!remoteVersion) {
+            showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", `Remote version is missing from config.\nURL: ${SOURCES.customConfig}`);
+        } else if (remoteVersion !== EXTENSION_VERSION) {
+            showVersionMismatchWarning(EXTENSION_VERSION, remoteVersion, `Your script version is out of date. Please update.\nConfig URL: ${SOURCES.customConfig}`);
+        } else {
+            log(1, `Extension version (${EXTENSION_VERSION}) is up to date.`);
+        }
+
+        injectGlobalCSS();
+        setupCornerButtons();
+        updateLogView(document);
+        handleDOMChange([]);
+        const observer = new MutationObserver(handleDOMChange);
+        observer.observe(document.body, { childList: true, subtree: true });
+        log(1, "👀 Observer is active.");
+    }
+
+    main();
+})();
