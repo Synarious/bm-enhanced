@@ -1,11 +1,15 @@
 ## About This Repository
-This project is a [Userscript](https://en.wikipedia.org/wiki/Userscript) for [Tampermonkey](https://www.tampermonkey.net/) and began as a way to improve the readability of logs in populated games like Squad. Initially designed to highlight text, it has grown to include over a dozen features and quality-of-life improvements. The project has been rewritten to be easily forked and is now available for free. Primarily a passion project, it has been tested in Squad/Reforger communities but should theoretically work for all Battlemetrics-supported titles.
+This project is userscript that began as a way to improve the readability of logs in populated games like Squad. Initially designed to highlight text, it has grown to include over a dozen features and quality-of-life improvements. The project has been rewritten to be easily forked and is now available for free. Primarily a passion project, it has been tested in Squad/Reforger communities and should theoretically work for all Battlemetrics-supported titles.
 
-It's free and open source, please consider leaving a coffee https://ko-fi.com/synarion if you would like <3
+It's free and open source, please consider leaving a coffee https://ko-fi.com/synarion if you would like. 
 
 ## Requirements & Install
-- Chrome based browser (v130+ Tested) with **DEV MODE** enable (required).  Firefox is supported as well (dev mode not needed).
+Option 1: Chrome Extension (Chrome Only)
+- Chrome based browser (v130+ Tested) with **DEV MODE** enable (required).
+Option 2: Tampermonkey Extension (Chrome & Firefox/Zen)
 - Tampermonkey Browser Extension: [Chrome](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en&pli=1) v120+ OR [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) 78+ (Tested on stable). 
+
+Which is better? For chrome, the extension has reduced permission scope compared to Tampermonkey which has access to all sites by default. I haven't benchmarked them, but I suspect the extension is better than Tampermonkey.
 
 > [!WARNING]
 > Chromium browsers (Chrome, Edge, Brave etc..) all require "DEV MODE" enabled in the extension settings area (see "Getting Started" guide below).
