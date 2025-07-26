@@ -1,4 +1,4 @@
-const EXTENSION_VERSION = "3.00";
+const EXTENSION_VERSION = "3.00"; // This number must match termList.json or the extension will warn you about a version mismatch. This makes sure users are running the correct version of the script.
 const bmORG_ID = 58064; // This is the organization ID for the BMUS organization. It is used to filter the ban list to only show bans from this organization.
 const SOURCES = {
     adminList: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json",
@@ -21,6 +21,7 @@ const SELECTORS = {
     logNoteFlags: ".css-he5ni6",
     logServerNames: ".css-1ymmsk5",
     logTimestamps: ".css-z1s6qn",
+    logTimestampsLong: ".css-1jtoyp",
     playerPage: "#RCONPlayerPage",
     playerPageTitle: "#RCONPlayerPage h2",
     playerInfoTable: '#RCONPlayerPage table.css-11gv980',
@@ -71,46 +72,7 @@ const SELECTORS = {
 
     function injectGlobalCSS() {
         if (document.getElementById('bmus-global-styles')) return;
-        const styles = `
-            /* Wrapper for Copy and CBL buttons */
-            #bmus-actions-container {
-                position: absolute;
-                top: 14.35em;
-                left: 19em;
-                z-index: 1000;
-                display: flex;
-                align-items: center;
-            }
-            /* Copy button styles */
-            #copy-player-info-btn {
-                padding: 4px;
-                width: 75px;
-                background: rgb(0, 123, 255);
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-            }
-            /* CBL container styles - now for an <a> tag */
-            #CBL-info-container {
-                margin-left: 10px;
-                padding: 4px 8px;
-                background: #000000bd;
-                color: white; /* Default color */
-                border-radius: 5px;
-                font-size: 14px;
-                font-weight: bold;
-                white-space: nowrap;
-                text-decoration: none; /* Remove underline */
-                transition: filter 0.2s;
-            }
-            #CBL-info-container:hover {
-                filter: brightness(1.2); /* Add a hover effect */
-            }
-            /* Other general styles */
-            .main { width: 90% !important; margin-left: 4em; margin-right: 4em; } @media (max-width: 768px) { .main { width: inherit !important; } }
-            .css-1nxi32t { width: 1px; } .css-1xkypod { position: unset !important; }
-        `;
+        const styles = `#bmus-actions-container{position:absolute;top:14.35em;left:19em;z-index:1000;display:flex;align-items:center}#copy-player-info-btn{padding:4px;width:75px;background:rgb(0, 123, 255);color:white;border:none;border-radius:5px;cursor:pointer}#CBL-info-container{margin-left:10px;padding:4px 8px;background:#000000bd;color:white;border-radius:5px;font-size:14px;font-weight:bold;white-space:nowrap;text-decoration:none;transition:filter 0.2s}#CBL-info-container:hover{filter: brightness(1.2)}.main{width:90% !important;margin-left:4em;margin-right:4em}@media (max-width: 768px){.main{width:inherit !important}}.css-1nxi32t{width:1px}.css-1xkypod{position:unset !important}.css-mxzvlz{padding-left:0.5em;width:20%;display:inline-table}.css-110bni0{font-size:14px}@media (max-width: 1099px) and (min-width: 950px){.css-mxzvlz{width:33%;display:inline-table}}@media (max-width: 949px) and (min-width: 601px){.css-mxzvlz{width:50%;display:inline-table}}@media (max-width: 600px){.css-mxzvlz{width:100%;display:inline-table}}`;
         const styleSheet = document.createElement("style");
         styleSheet.id = 'bmus-global-styles';
         styleSheet.textContent = styles;
@@ -125,106 +87,69 @@ const SELECTORS = {
         document.body.appendChild(warningBox);
         document.getElementById("closeWarningBtn").addEventListener("click", () => warningBox.remove());
     }
+    function applyTimeStamps() {
+        const timeStampElements = document.querySelectorAll(`${SELECTORS.logTimestamps}, ${SELECTORS.logTimestampsLong}`);
 
-    /**
-     * THIS FUNCTION HAS BEEN CORRECTED
-     */
-    function updateLogView(scope = document) {
-        if (!state.config) return;
-        const { sets, colors, serverName1, serverName2, adminLists } = state.config;
+        const tooltipFormatOptions = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZoneName: 'short',
+            hour12: true
+        };
 
-        const allElements = scope.querySelectorAll(`${SELECTORS.logMessages}, ${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`);
-        const adminColorRules = [
-            { list: adminLists.group1, color: colors.cStaffGroup1 },
-            { list: adminLists.group2, color: colors.cStaffGroup2 },
-            { list: adminLists.group3, color: colors.cStaffGroup3 }
-        ];
-        const messageColorRules = [
-            { set: sets.joinedServer, color: colors.cJoined },
-            { set: sets.leftServer, color: colors.cLeftServer },
-            { set: sets.actionList, color: colors.cModAction },
-            { set: sets.adminTerms, color: colors.cAdminAction },
-            { set: sets.factionGroup1, color: colors.cFactionGroup1 },
-            { set: sets.factionGroup2, color: colors.cFactionGroup2 },
-            { set: sets.factionGroup3, color: colors.cFactionGroup3 },
-            { set: sets.teamKilled, color: colors.cTeamKilled },
-            { set: sets.trackedTriggers, color: colors.cTracked },
-            { set: sets.grayedOut, color: colors.cGrayed },
-        ];
-
-        allElements.forEach(el => {
-            if (el.dataset.bmusColored) return; // Single flag to prevent any re-processing
-
-            let colorApplied = false;
-
-            // Priority 1: Check for admin names if the element is a name element
-            if (el.matches(`${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`)) {
-                for (const rule of adminColorRules) {
-                    for (const admin of rule.list) {
-                        if (el.textContent.includes(admin)) {
-                            el.style.color = rule.color;
-                            colorApplied = true;
-                            break;
-                        }
-                    }
-                    if (colorApplied) break;
-                }
+        timeStampElements.forEach(element => {
+            if (element.title && element.title.includes(':')) {
+                const parts = element.title.split(':');
+                if (parts.length > 2) return; // already processed
             }
 
-            // Priority 2: Check for general messages if no admin color was applied
-            if (!colorApplied && el.matches(SELECTORS.logMessages)) {
-                for (const rule of messageColorRules) {
-                    for (const phrase of rule.set) {
-                        if (el.textContent.includes(phrase)) {
-                            el.style.color = rule.color;
-                            colorApplied = true;
-                            break;
-                        }
-                    }
-                    if (colorApplied) break;
-                }
-            }
-
-            if (colorApplied) {
-                el.dataset.bmusColored = 'true';
-            }
-        });
-
-        // Handle other, non-conflicting elements separately
-        scope.querySelectorAll(SELECTORS.logTimestamps).forEach(element => {
-            if (element.title) return;
             const utcTime = element.getAttribute("datetime");
             if (utcTime) {
                 const date = new Date(utcTime);
                 if (!isNaN(date.getTime())) {
-                    element.title = date.toLocaleString(undefined, { timeZoneName: 'short' });
+                    element.setAttribute("title", date.toLocaleString(undefined, tooltipFormatOptions));
                 }
             }
         });
-
-        scope.querySelectorAll(SELECTORS.logServerNames).forEach(element => {
-            if (element.dataset.serverColored) return;
-            if (element.textContent.includes(serverName1)) element.style.color = "green";
-            else if (element.textContent.includes(serverName2)) element.style.color = "yellow";
-            element.dataset.serverColored = 'true';
-        });
-
-        scope.querySelectorAll(SELECTORS.logNoteFlags).forEach(element => element.style.color = colors.cNoteColorIcon);
     }
 
+
+    function updateLogView() {
+        if (!state.config) return;
+        const { sets, colors, serverName1, serverName2 } = state.config;
+        const colorRules = [{ elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.joinedServer, color: colors.cJoined }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.leftServer, color: colors.cLeftServer }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.actionList, color: colors.cModAction }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.adminTerms, color: colors.cAdminAction }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.factionGroup1, color: colors.cFactionGroup1 }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.factionGroup2, color: colors.cFactionGroup2 }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.factionGroup3, color: colors.cFactionGroup3 }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.teamKilled, color: colors.cTeamKilled }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.trackedTriggers, color: colors.cTracked }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.grayedOut, color: colors.cGrayed },];
+        colorRules.forEach(({ elements, set, color }) => elements.forEach(element => { if (element.dataset.colored) return; for (const phrase of set) { if (element.textContent.includes(phrase)) { element.style.color = color; element.dataset.colored = 'true'; break; } } }));
+        const adminNameElements = document.querySelectorAll(`${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`);
+        const adminColorRules = [{ elements: adminNameElements, list: state.adminLists.group1, color: colors.cStaffGroup1 }, { elements: adminNameElements, list: state.adminLists.group2, color: colors.cStaffGroup2 }, { elements: adminNameElements, list: state.adminLists.group3, color: colors.cStaffGroup3 }];
+        adminColorRules.forEach(({ elements, list, color }) => elements.forEach(el => { if (el.dataset.colored) return; const elText = el.textContent; for (const admin of list) { if (elText.includes(admin)) { el.style.color = color; el.dataset.colored = 'true'; break; } } }));
+
+        // Apply local timestamps to the UTC time elements.
+        applyTimeStamps();
+
+        document.querySelectorAll(SELECTORS.logServerNames).forEach(element => { if (element.dataset.colored) return; if (element.textContent.includes(serverName1)) element.style.color = "green"; else if (element.textContent.includes(serverName2)) element.style.color = "yellow"; element.dataset.colored = 'true'; });
+        document.querySelectorAll(SELECTORS.logNoteFlags).forEach(element => element.style.color = colors.cNoteColorIcon);
+    }
 
     async function setupPlayerPage() {
         log(2, 'setupPlayerPage() called.');
         if (state.page.isPlayerPage) return;
+
         const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
         if (!identifiersTable) {
             log(2, 'setupPlayerPage: Identifiers table NOT found yet.');
             return;
         }
         log(1, 'Identifiers table found. Proceeding with player page setup.');
+
         let steamID = null;
         const rows = identifiersTable.querySelectorAll('tbody > tr');
         log(2, `Found ${rows.length} identifier rows. Searching for valid Steam ID...`);
+
         for (const row of rows) {
             const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
             const valueEl = row.querySelector('td[data-title="Identifier"] span');
@@ -237,7 +162,9 @@ const SELECTORS = {
                 }
             }
         }
+
         state.page.isPlayerPage = true;
+
         let actionsContainer = document.querySelector(SELECTORS.actionsContainer);
         if (!actionsContainer) {
             log(2, 'Creating actions container.');
@@ -245,6 +172,7 @@ const SELECTORS = {
             actionsContainer.id = SELECTORS.actionsContainer.substring(1);
             document.body.appendChild(actionsContainer);
         }
+
         if (!document.querySelector(SELECTORS.copyInfoButton)) {
             log(2, 'Creating Copy button.');
             const btn = document.createElement('button');
@@ -254,8 +182,10 @@ const SELECTORS = {
             btn.addEventListener('click', copyPlayerInfo);
             actionsContainer.appendChild(btn);
         }
+
         if (!document.querySelector(SELECTORS.cblInfoContainer)) {
             log(2, 'Creating CBL element...');
+
             if (steamID) {
                 const cblLink = document.createElement("a");
                 cblLink.id = SELECTORS.cblInfoContainer.substring(1);
@@ -284,8 +214,10 @@ const SELECTORS = {
             console.error("BMUS_ERROR: Could not find identifiers table for copy action.");
             return;
         }
+
         const rows = identifiersTable.querySelectorAll('tbody > tr');
         let allIdentifiers = [];
+
         rows.forEach((row, index) => {
             const valueEl = row.querySelector('td[data-title="Identifier"] span');
             const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
@@ -297,8 +229,10 @@ const SELECTORS = {
             }
         });
         log(3, 'Parsed all identifiers:', allIdentifiers);
+
         allIdentifiers.sort((a, b) => b.timestamp - a.timestamp);
         log(3, 'Sorted all identifiers by timestamp:', allIdentifiers);
+
         const finalIdentifiers = new Map();
         for (const id of allIdentifiers) {
             if (!finalIdentifiers.has(id.type)) {
@@ -306,16 +240,19 @@ const SELECTORS = {
             }
         }
         log(2, 'Selected unique, most recent identifiers:', finalIdentifiers);
+
         const infoToCopy = [];
-        const desiredOrder = ["Name", "BattlEye GUID", "Steam ID", "EOS ID"];
+        const desiredOrder = ["Name", "Steam ID", "EOS ID"];
         for (const type of desiredOrder) {
             if (finalIdentifiers.has(type)) {
+                // This line formats the output as "Label: Value"
                 infoToCopy.push(`${type}: ${finalIdentifiers.get(type)}`);
             }
         }
         infoToCopy.push(`BM: <${window.location.href}>`);
         const finalString = infoToCopy.join('\n');
         log(3, "--- Final string to be copied: ---\n" + finalString);
+
         navigator.clipboard.writeText(finalString)
             .then(() => log(1, "✅ Player info copied!"))
             .catch(err => console.error("🚫|BMUS: Clipboard copy failed", err));
@@ -344,12 +281,18 @@ const SELECTORS = {
 
     function setupBanButton() {
         const banButton = document.querySelector(SELECTORS.banButton);
+
+        // Only proceed if the button exists and hasn't been modified by us yet.
         if (banButton && !banButton.dataset.modified) {
             log(2, 'Found original ban button. Overriding its click behavior...');
+
             const newBanButton = banButton.cloneNode(true);
+
             newBanButton.href = "/rcon/bans?filter%5Borganization%5D=" + bmORG_ID;
             newBanButton.dataset.modified = 'true';
+
             banButton.parentNode.replaceChild(newBanButton, banButton);
+
             log(1, 'Ban button link successfully overridden.');
         }
     }
@@ -382,19 +325,8 @@ const SELECTORS = {
         log(2, 'Corner buttons set up.');
     }
 
-    function handleDOMChange(mutationsList) {
+    function handleDOMChange() {
         log(3, 'DOM Change Detected, running checks...');
-        for (const mutation of mutationsList) {
-            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                mutation.addedNodes.forEach(node => {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        if (node.matches(SELECTORS.logContainer) || node.querySelector(SELECTORS.logMessages)) {
-                            updateLogView(node);
-                        }
-                    }
-                });
-            }
-        }
         const onPlayerPage = document.querySelector(SELECTORS.playerPage);
         if (onPlayerPage) {
             setupPlayerPage();
@@ -405,13 +337,8 @@ const SELECTORS = {
                 state.page.isPlayerPage = false;
             }
         }
-        if (document.querySelector(SELECTORS.orgEditPage)) {
-            updateOrgEditPage();
-        } else {
-            if (state.page.isOrgEditPage) {
-                state.page.isOrgEditPage = false;
-            }
-        }
+        if (document.querySelector(SELECTORS.logContainer)) { updateLogView(); }
+        if (document.querySelector(SELECTORS.orgEditPage)) { updateOrgEditPage(); } else { state.page.isOrgEditPage = false; }
         setupBanButton();
     }
 
@@ -422,10 +349,7 @@ const SELECTORS = {
             showVersionMismatchWarning(EXTENSION_VERSION, "Error", `Could not load required configuration from:\n${SOURCES.customConfig}`);
             return;
         }
-        // Attach the adminList to the state so updateLogView can access it
         state.config = customConfig;
-        state.config.adminLists = adminList ? adminList : { group1: [], group2: [], group3: [] };
-
         const remoteVersion = state.config?.chrome_extension_version;
         if (!remoteVersion) {
             showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", `Remote version is missing from config.\nURL: ${SOURCES.customConfig}`);
@@ -434,13 +358,17 @@ const SELECTORS = {
         } else {
             log(1, `Extension version (${EXTENSION_VERSION}) is up to date.`);
         }
-
+        if (adminList) {
+            state.adminLists.group1 = new Set(adminList.group1);
+            state.adminLists.group2 = new Set(adminList.group2);
+            state.adminLists.group3 = new Set(adminList.group3);
+            log(2, 'Admin lists loaded.');
+        }
         injectGlobalCSS();
         setupCornerButtons();
-        updateLogView(document);
-        handleDOMChange([]);
         const observer = new MutationObserver(handleDOMChange);
         observer.observe(document.body, { childList: true, subtree: true });
+        handleDOMChange();
         log(1, "👀 Observer is active.");
     }
 

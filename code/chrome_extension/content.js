@@ -1,43 +1,376 @@
-let EXTENSION_VERSION="3.00",bmORG_ID=58064,SOURCES={adminList:"https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json",customConfig:"https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json"},SELECTORS={logContainer:".ReactVirtualized__Grid__innerScrollContainer, .css-b7r34x",logMessages:".css-ym7lu8",logPlayerNames:".css-1ewh5td",logActivityNames:".css-fj458c",logNoteFlags:".css-he5ni6",logServerNames:".css-1ymmsk5",logTimestamps:".css-z1s6qn",playerPage:"#RCONPlayerPage",playerPageTitle:"#RCONPlayerPage h2",playerInfoTable:"#RCONPlayerPage table.css-11gv980",orgEditPage:"#RCONOrgEditPage",orgRoleList:"#RCONOrgEditPage ul.list-unstyled > li",banButton:'a[href="/rcon/bans"]',cornerButtonContainer:"#corner-button-container",actionsContainer:"#bmus-actions-container",copyInfoButton:"#copy-player-info-btn",cblInfoContainer:"#CBL-info-container"};(async()=>{let o=1;function c(e,...t){e<=o&&console.log("BMUS_LOG |",...t)}let d={config:null,adminLists:{group1:new Set,group2:new Set,group3:new Set},page:{isPlayerPage:!1,isLogView:!1,isOrgEditPage:!1}};async function u(e,t,o={}){try{var n,r=await fetch(e,o);if(r.ok)return(n=await r.text())?JSON.parse(n):null;throw new Error(`HTTP error! Status: ${r.status} for `+t)}catch(e){return console.error(`🚫|BMUS: Failed to fetch ${t}.`,e),null}}function n(e,t,o){let n=document.createElement("div");Object.assign(n.style,{position:"fixed",top:"0",left:"0",width:"100%",height:"100%",backgroundColor:"rgba(19, 19, 19, 0.85)",color:"white",zIndex:"99999",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",fontSize:"2rem",fontWeight:"bold",textAlign:"center",backdropFilter:"blur(5px)"}),n.innerHTML=`<div>🚨 Battlemetrics - Chrome Extension Version Warning 🚨<br><br><div style="font-size: 1.5rem; max-width: 800px;">${o}</div><br><br>Local version: <span style="color: yellow">${e}</span> /// Remote version: <span style="color: cyan">${t}</span><br><br><button id="closeWarningBtn" style="padding: 10px 20px; font-size: 1rem; background: white; color: red; border: none; cursor: pointer; border-radius: 5px;">Ignore Warning & Close</button></div>`,document.body.appendChild(n),document.getElementById("closeWarningBtn").addEventListener("click",()=>n.remove())}function r(i=document){if(d.config){let{sets:e,colors:t,serverName1:o,serverName2:n,adminLists:r}=d.config;var l=i.querySelectorAll(`${SELECTORS.logMessages}, ${SELECTORS.logActivityNames}, `+SELECTORS.logPlayerNames);let a=[{list:r.group1,color:t.cStaffGroup1},{list:r.group2,color:t.cStaffGroup2},{list:r.group3,color:t.cStaffGroup3}],s=[{set:e.joinedServer,color:t.cJoined},{set:e.leftServer,color:t.cLeftServer},{set:e.actionList,color:t.cModAction},{set:e.adminTerms,color:t.cAdminAction},{set:e.factionGroup1,color:t.cFactionGroup1},{set:e.factionGroup2,color:t.cFactionGroup2},{set:e.factionGroup3,color:t.cFactionGroup3},{set:e.teamKilled,color:t.cTeamKilled},{set:e.trackedTriggers,color:t.cTracked},{set:e.grayedOut,color:t.cGrayed}];l.forEach(t=>{if(!t.dataset.bmusColored){let e=!1;if(t.matches(SELECTORS.logActivityNames+", "+SELECTORS.logPlayerNames))for(var o of a){for(var n of o.list)if(t.textContent.includes(n)){t.style.color=o.color,e=!0;break}if(e)break}if(!e&&t.matches(SELECTORS.logMessages))for(var r of s){for(var i of r.set)if(t.textContent.includes(i)){t.style.color=r.color,e=!0;break}if(e)break}e&&(t.dataset.bmusColored="true")}}),i.querySelectorAll(SELECTORS.logTimestamps).forEach(e=>{var t;e.title||(t=e.getAttribute("datetime"))&&(t=new Date(t),isNaN(t.getTime())||(e.title=t.toLocaleString(void 0,{timeZoneName:"short"})))}),i.querySelectorAll(SELECTORS.logServerNames).forEach(e=>{e.dataset.serverColored||(e.textContent.includes(o)?e.style.color="green":e.textContent.includes(n)&&(e.style.color="yellow"),e.dataset.serverColored="true")}),i.querySelectorAll(SELECTORS.logNoteFlags).forEach(e=>e.style.color=t.cNoteColorIcon)}}async function i(){if(c(2,"setupPlayerPage() called."),!d.page.isPlayerPage){var o=document.querySelector(SELECTORS.playerInfoTable);if(o){c(1,"Identifiers table found. Proceeding with player page setup.");let e=null;var n,r,i,a,o=o.querySelectorAll("tbody > tr");c(2,`Found ${o.length} identifier rows. Searching for valid Steam ID...`);for(n of o){var s=n.querySelector('td[data-title="Type"] div.css-18s4qom'),l=n.querySelector('td[data-title="Identifier"] span');if(s&&l&&"Steam ID"===s.textContent.trim()){s=l.textContent.trim();if(s.startsWith("765")){c(2,"Valid Steam ID found for CBL: "+(e=s));break}}}d.page.isPlayerPage=!0;let t=document.querySelector(SELECTORS.actionsContainer);t||(c(2,"Creating actions container."),(t=document.createElement("div")).id=SELECTORS.actionsContainer.substring(1),document.body.appendChild(t)),document.querySelector(SELECTORS.copyInfoButton)||(c(2,"Creating Copy button."),(o=document.createElement("button")).id=SELECTORS.copyInfoButton.substring(1),o.textContent="📋 Copy",o.title="Copy Player Info",o.addEventListener("click",g),t.appendChild(o)),document.querySelector(SELECTORS.cblInfoContainer)||(c(2,"Creating CBL element..."),e?((o=document.createElement("a")).id=SELECTORS.cblInfoContainer.substring(1),o.href="https://communitybanlist.com/search/"+e,o.target="_blank",o.rel="noopener noreferrer",o.title=`View ${e} on Community Ban List`,o.innerHTML="<span>Loading CBL...</span>",t.appendChild(o),c(2,"Calling fetchCBLData()."),i=e,o=o,i={query:"query Search($id: String!) { steamUser(id: $id) { riskRating, activeBans: bans(expired: false) { edges { node { id } } }, expiredBans: bans(expired: true) { edges { node { id } } } } }",variables:{id:i}},c(3,"CBL Response Data:",i=await u("https://communitybanlist.com/graphql","CBL GraphQL",i={method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(i)})),i?.data?.steamUser?(i=i.data.steamUser,a=i.riskRating??0,r=i.activeBans?.edges?.length??0,i=i.expiredBans?.edges?.length??0,o.innerHTML=`<span style="color: ${5<a?"red":0<a?"orange":"white"};">CBL: ${a}/10</span> | <span>Act: ${r}</span> | <span>Exp: ${i}</span>`):o.innerHTML="<span>CBL: Not Found</span>"):((a=document.createElement("div")).id=SELECTORS.cblInfoContainer.substring(1),a.innerHTML="<span>CBL: SteamID not found</span>",t.appendChild(a),c(1,"Warning: No valid SteamID starting with '765' was found for CBL.")))}else c(2,"setupPlayerPage: Identifiers table NOT found yet.")}}function g(){c(2,"--- Starting copyPlayerInfo ---");var e=document.querySelector(SELECTORS.playerInfoTable);if(e){e=e.querySelectorAll("tbody > tr");let r=[];e.forEach((e,t)=>{var o=e.querySelector('td[data-title="Identifier"] span'),n=e.querySelector('td[data-title="Type"] div.css-18s4qom'),e=e.querySelector('td[data-title="Last Seen"] time');o&&n&&e?r.push({value:o.textContent.trim(),type:n.textContent.trim(),timestamp:new Date(e.getAttribute("datetime"))}):c(2,`Warning: Failed to parse row ${t}.`)}),c(3,"Parsed all identifiers:",r),r.sort((e,t)=>t.timestamp-e.timestamp),c(3,"Sorted all identifiers by timestamp:",r);var t,o=new Map;for(t of r)o.has(t.type)||o.set(t.type,t.value);c(2,"Selected unique, most recent identifiers:",o);var n,i=[];for(n of["Name","BattlEye GUID","Steam ID","EOS ID"])o.has(n)&&i.push(n+": "+o.get(n));i.push(`BM: <${window.location.href}>`);e=i.join("\n");c(3,"--- Final string to be copied: ---\n"+e),navigator.clipboard.writeText(e).then(()=>c(1,"✅ Player info copied!")).catch(e=>console.error("🚫|BMUS: Clipboard copy failed",e))}else console.error("BMUS_ERROR: Could not find identifiers table for copy action.")}function a(e){c(3,"DOM Change Detected, running checks...");for(var t of e)"childList"===t.type&&0<t.addedNodes.length&&t.addedNodes.forEach(e=>{e.nodeType===Node.ELEMENT_NODE&&(e.matches(SELECTORS.logContainer)||e.querySelector(SELECTORS.logMessages))&&r(e)});var o;document.querySelector(SELECTORS.playerPage)?i():d.page.isPlayerPage&&(c(1,"Left player page, cleaning up."),document.querySelector(SELECTORS.actionsContainer)?.remove(),d.page.isPlayerPage=!1),document.querySelector(SELECTORS.orgEditPage)?(d.page.isOrgEditPage||(c(2,"Setting up Organization Edit Page..."),d.page.isOrgEditPage=!0),document.querySelectorAll(SELECTORS.orgRoleList).forEach(e=>{var t;e.dataset.modified||((t=Array.from(e.childNodes).find(e=>e.nodeType===Node.TEXT_NODE&&""!==e.textContent.trim()))&&e.insertBefore(document.createTextNode(" ||| "),t.nextSibling),e.dataset.modified="true")})):d.page.isOrgEditPage&&(d.page.isOrgEditPage=!1),(e=document.querySelector(SELECTORS.banButton))&&!e.dataset.modified&&(c(2,"Found original ban button. Overriding its click behavior..."),(o=e.cloneNode(!0)).href="/rcon/bans?filter%5Borganization%5D="+bmORG_ID,o.dataset.modified="true",e.parentNode.replaceChild(o,e),c(1,"Ban button link successfully overridden."))}(async()=>{c(1,`🚀 BMUS v${EXTENSION_VERSION}: Initializing...`);var[e,t]=await Promise.all([u(SOURCES.customConfig,"Custom Config"),u(SOURCES.adminList,"Admin List")]);e?(d.config=e,d.config.adminLists=t||{group1:[],group2:[],group3:[]},(e=d.config?.chrome_extension_version)?e!==EXTENSION_VERSION?n(EXTENSION_VERSION,e,`Your script version is out of date. Please update.
-Config URL: `+SOURCES.customConfig):c(1,`Extension version (${EXTENSION_VERSION}) is up to date.`):n(EXTENSION_VERSION,"Unavailable",`Remote version is missing from config.
-URL: `+SOURCES.customConfig),document.getElementById("bmus-global-styles")||((t=document.createElement("style")).id="bmus-global-styles",t.textContent=`
-            /* Wrapper for Copy and CBL buttons */
-            #bmus-actions-container {
-                position: absolute;
-                top: 14.35em;
-                left: 19em;
-                z-index: 1000;
-                display: flex;
-                align-items: center;
+const EXTENSION_VERSION = "3.00"; // This number must match termList.json or the extension will warn you about a version mismatch. This makes sure users are running the correct version of the script.
+const bmORG_ID = 58064; // This is the organization ID for the BMUS organization. It is used to filter the ban list to only show bans from this organization.
+const SOURCES = {
+    adminList: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json",
+    customConfig: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json",
+};
+
+/*
+ *
+ * You shouldn't need to modify anything below this. Modify the json files in the config folder instead.
+ *
+ */
+
+
+// DOM query selectors.
+const SELECTORS = {
+    logContainer: '.ReactVirtualized__Grid__innerScrollContainer, .css-b7r34x',
+    logMessages: ".css-ym7lu8",
+    logPlayerNames: ".css-1ewh5td",
+    logActivityNames: ".css-fj458c",
+    logNoteFlags: ".css-he5ni6",
+    logServerNames: ".css-1ymmsk5",
+    logTimestamps: ".css-z1s6qn",
+    logTimestampsLong: ".css-1jtoyp",
+    playerPage: "#RCONPlayerPage",
+    playerPageTitle: "#RCONPlayerPage h2",
+    playerInfoTable: '#RCONPlayerPage table.css-11gv980',
+    orgEditPage: '#RCONOrgEditPage',
+    orgRoleList: '#RCONOrgEditPage ul.list-unstyled > li',
+    banButton: 'a[href="/rcon/bans"]',
+    cornerButtonContainer: "#corner-button-container",
+    actionsContainer: "#bmus-actions-container",
+    copyInfoButton: "#copy-player-info-btn",
+    cblInfoContainer: "#CBL-info-container",
+};
+
+
+
+(async () => {
+
+    // --- DEBUGGING CONFIGURATION ---
+    const DEBUG_LEVEL = 1; // 0=Off, 1=Basic, 2=Detailed, 3=Verbose
+
+    /**
+     * Custom logger that respects the DEBUG_LEVEL.
+     * @param {number} level - The debug level of this message.
+     * @param {...any} args - The content to log.
+     */
+    function log(level, ...args) {
+        if (level <= DEBUG_LEVEL) {
+            console.log('BMUS_LOG |', ...args);
+        }
+    }
+
+    const state = {
+        config: null,
+        adminLists: { group1: new Set(), group2: new Set(), group3: new Set() },
+        page: { isPlayerPage: false, isLogView: false, isOrgEditPage: false }
+    };
+
+    async function fetchJSON(url, sourceName, options = {}) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) { throw new Error(`HTTP error! Status: ${response.status} for ${sourceName}`); }
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
+        } catch (error) {
+            console.error(`🚫|BMUS: Failed to fetch ${sourceName}.`, error);
+            return null;
+        }
+    }
+
+    function injectGlobalCSS() {
+        if (document.getElementById('bmus-global-styles')) return;
+        const styles = `#bmus-actions-container{position:absolute;top:14.35em;left:19em;z-index:1000;display:flex;align-items:center}#copy-player-info-btn{padding:4px;width:75px;background:rgb(0, 123, 255);color:white;border:none;border-radius:5px;cursor:pointer}#CBL-info-container{margin-left:10px;padding:4px 8px;background:#000000bd;color:white;border-radius:5px;font-size:14px;font-weight:bold;white-space:nowrap;text-decoration:none;transition:filter 0.2s}#CBL-info-container:hover{filter: brightness(1.2)}.main{width:90% !important;margin-left:4em;margin-right:4em}@media (max-width: 768px){.main{width:inherit !important}}.css-1nxi32t{width:1px}.css-1xkypod{position:unset !important}.css-mxzvlz{padding-left:0.5em;width:20%;display:inline-table}.css-110bni0{font-size:14px}@media (max-width: 1099px) and (min-width: 950px){.css-mxzvlz{width:33%;display:inline-table}}@media (max-width: 949px) and (min-width: 601px){.css-mxzvlz{width:50%;display:inline-table}}@media (max-width: 600px){.css-mxzvlz{width:100%;display:inline-table}}`;
+        const styleSheet = document.createElement("style");
+        styleSheet.id = 'bmus-global-styles';
+        styleSheet.textContent = styles;
+        document.head.appendChild(styleSheet);
+        log(2, 'Global CSS injected.');
+    }
+
+    function showVersionMismatchWarning(localVer, remoteVer, message) {
+        const warningBox = document.createElement("div");
+        Object.assign(warningBox.style, { position: "fixed", top: "0", left: "0", width: "100%", height: "100%", backgroundColor: "rgba(19, 19, 19, 0.85)", color: "white", zIndex: "99999", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", fontSize: "2rem", fontWeight: "bold", textAlign: "center", backdropFilter: "blur(5px)" });
+        warningBox.innerHTML = `<div>🚨 Battlemetrics - Chrome Extension Version Warning 🚨<br><br><div style="font-size: 1.5rem; max-width: 800px;">${message}</div><br><br>Local version: <span style="color: yellow">${localVer}</span> /// Remote version: <span style="color: cyan">${remoteVer}</span><br><br><button id="closeWarningBtn" style="padding: 10px 20px; font-size: 1rem; background: white; color: red; border: none; cursor: pointer; border-radius: 5px;">Ignore Warning & Close</button></div>`;
+        document.body.appendChild(warningBox);
+        document.getElementById("closeWarningBtn").addEventListener("click", () => warningBox.remove());
+    }
+    function applyTimeStamps() {
+        const timeStampElements = document.querySelectorAll(`${SELECTORS.logTimestamps}, ${SELECTORS.logTimestampsLong}`);
+
+        const tooltipFormatOptions = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZoneName: 'short',
+            hour12: true
+        };
+
+        timeStampElements.forEach(element => {
+            if (element.title && element.title.includes(':')) {
+                const parts = element.title.split(':');
+                if (parts.length > 2) return; // already processed
             }
-            /* Copy button styles */
-            #copy-player-info-btn {
-                padding: 4px;
-                width: 75px;
-                background: rgb(0, 123, 255);
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
+
+            const utcTime = element.getAttribute("datetime");
+            if (utcTime) {
+                const date = new Date(utcTime);
+                if (!isNaN(date.getTime())) {
+                    element.setAttribute("title", date.toLocaleString(undefined, tooltipFormatOptions));
+                }
             }
-            /* CBL container styles - now for an <a> tag */
-            #CBL-info-container {
-                margin-left: 10px;
-                padding: 4px 8px;
-                background: #000000bd;
-                color: white; /* Default color */
-                border-radius: 5px;
-                font-size: 14px;
-                font-weight: bold;
-                white-space: nowrap;
-                text-decoration: none; /* Remove underline */
-                transition: filter 0.2s;
+        });
+    }
+
+
+    function updateLogView() {
+        if (!state.config) return;
+        const { sets, colors, serverName1, serverName2 } = state.config;
+        const colorRules = [{ elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.joinedServer, color: colors.cJoined }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.leftServer, color: colors.cLeftServer }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.actionList, color: colors.cModAction }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.adminTerms, color: colors.cAdminAction }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.factionGroup1, color: colors.cFactionGroup1 }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.factionGroup2, color: colors.cFactionGroup2 }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.factionGroup3, color: colors.cFactionGroup3 }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.teamKilled, color: colors.cTeamKilled }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.trackedTriggers, color: colors.cTracked }, { elements: document.querySelectorAll(SELECTORS.logMessages), set: sets.grayedOut, color: colors.cGrayed },];
+        colorRules.forEach(({ elements, set, color }) => elements.forEach(element => { if (element.dataset.colored) return; for (const phrase of set) { if (element.textContent.includes(phrase)) { element.style.color = color; element.dataset.colored = 'true'; break; } } }));
+        const adminNameElements = document.querySelectorAll(`${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`);
+        const adminColorRules = [{ elements: adminNameElements, list: state.adminLists.group1, color: colors.cStaffGroup1 }, { elements: adminNameElements, list: state.adminLists.group2, color: colors.cStaffGroup2 }, { elements: adminNameElements, list: state.adminLists.group3, color: colors.cStaffGroup3 }];
+        adminColorRules.forEach(({ elements, list, color }) => elements.forEach(el => { if (el.dataset.colored) return; const elText = el.textContent; for (const admin of list) { if (elText.includes(admin)) { el.style.color = color; el.dataset.colored = 'true'; break; } } }));
+
+        // Apply local timestamps to the UTC time elements.
+        applyTimeStamps();
+
+        document.querySelectorAll(SELECTORS.logServerNames).forEach(element => { if (element.dataset.colored) return; if (element.textContent.includes(serverName1)) element.style.color = "green"; else if (element.textContent.includes(serverName2)) element.style.color = "yellow"; element.dataset.colored = 'true'; });
+        document.querySelectorAll(SELECTORS.logNoteFlags).forEach(element => element.style.color = colors.cNoteColorIcon);
+    }
+
+    async function setupPlayerPage() {
+        log(2, 'setupPlayerPage() called.');
+        if (state.page.isPlayerPage) return;
+
+        const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
+        if (!identifiersTable) {
+            log(2, 'setupPlayerPage: Identifiers table NOT found yet.');
+            return;
+        }
+        log(1, 'Identifiers table found. Proceeding with player page setup.');
+
+        let steamID = null;
+        const rows = identifiersTable.querySelectorAll('tbody > tr');
+        log(2, `Found ${rows.length} identifier rows. Searching for valid Steam ID...`);
+
+        for (const row of rows) {
+            const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
+            const valueEl = row.querySelector('td[data-title="Identifier"] span');
+            if (typeEl && valueEl && typeEl.textContent.trim() === "Steam ID") {
+                const potentialID = valueEl.textContent.trim();
+                if (potentialID.startsWith("765")) {
+                    steamID = potentialID;
+                    log(2, `Valid Steam ID found for CBL: ${steamID}`);
+                    break;
+                }
             }
-            #CBL-info-container:hover {
-                filter: brightness(1.2); /* Add a hover effect */
+        }
+
+        state.page.isPlayerPage = true;
+
+        let actionsContainer = document.querySelector(SELECTORS.actionsContainer);
+        if (!actionsContainer) {
+            log(2, 'Creating actions container.');
+            actionsContainer = document.createElement('div');
+            actionsContainer.id = SELECTORS.actionsContainer.substring(1);
+            document.body.appendChild(actionsContainer);
+        }
+
+        if (!document.querySelector(SELECTORS.copyInfoButton)) {
+            log(2, 'Creating Copy button.');
+            const btn = document.createElement('button');
+            btn.id = SELECTORS.copyInfoButton.substring(1);
+            btn.textContent = '📋 Copy';
+            btn.title = 'Copy Player Info';
+            btn.addEventListener('click', copyPlayerInfo);
+            actionsContainer.appendChild(btn);
+        }
+
+        if (!document.querySelector(SELECTORS.cblInfoContainer)) {
+            log(2, 'Creating CBL element...');
+
+            if (steamID) {
+                const cblLink = document.createElement("a");
+                cblLink.id = SELECTORS.cblInfoContainer.substring(1);
+                cblLink.href = `https://communitybanlist.com/search/${steamID}`;
+                cblLink.target = "_blank";
+                cblLink.rel = "noopener noreferrer";
+                cblLink.title = `View ${steamID} on Community Ban List`;
+                cblLink.innerHTML = '<span>Loading CBL...</span>';
+                actionsContainer.appendChild(cblLink);
+                log(2, 'Calling fetchCBLData().');
+                await fetchCBLData(steamID, cblLink);
+            } else {
+                const cblDiv = document.createElement("div");
+                cblDiv.id = SELECTORS.cblInfoContainer.substring(1);
+                cblDiv.innerHTML = '<span>CBL: SteamID not found</span>';
+                actionsContainer.appendChild(cblDiv);
+                log(1, "Warning: No valid SteamID starting with '765' was found for CBL.");
             }
-            /* Other general styles */
-            .main { width: 90% !important; margin-left: 4em; margin-right: 4em; } @media (max-width: 768px) { .main { width: inherit !important; } }
-            .css-1nxi32t { width: 1px; } .css-1xkypod { position: unset !important; }
-        `,document.head.appendChild(t),c(2,"Global CSS injected.")),document.querySelector(SELECTORS.cornerButtonContainer)||((e=document.createElement("div")).id=SELECTORS.cornerButtonContainer.substring(1),Object.assign(e.style,{position:"fixed",bottom:"10px",right:"10px",zIndex:"99999"}),(t=document.createElement("button")).textContent="v"+EXTENSION_VERSION,Object.assign(t.style,{background:"black",color:"white",border:"1px solid white",borderRadius:"5px",padding:"5px",fontSize:"10px",cursor:"pointer"}),e.appendChild(t),document.body.appendChild(e),c(2,"Corner buttons set up.")),r(document),a([]),new MutationObserver(a).observe(document.body,{childList:!0,subtree:!0}),c(1,"👀 Observer is active.")):n(EXTENSION_VERSION,"Error",`Could not load required configuration from:
-`+SOURCES.customConfig)})()})();
+        }
+    }
+
+    function copyPlayerInfo() {
+        log(2, '--- Starting copyPlayerInfo ---');
+        const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
+        if (!identifiersTable) {
+            console.error("BMUS_ERROR: Could not find identifiers table for copy action.");
+            return;
+        }
+
+        const rows = identifiersTable.querySelectorAll('tbody > tr');
+        let allIdentifiers = [];
+
+        rows.forEach((row, index) => {
+            const valueEl = row.querySelector('td[data-title="Identifier"] span');
+            const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
+            const timeEl = row.querySelector('td[data-title="Last Seen"] time');
+            if (valueEl && typeEl && timeEl) {
+                allIdentifiers.push({ value: valueEl.textContent.trim(), type: typeEl.textContent.trim(), timestamp: new Date(timeEl.getAttribute('datetime')) });
+            } else {
+                log(2, `Warning: Failed to parse row ${index}.`);
+            }
+        });
+        log(3, 'Parsed all identifiers:', allIdentifiers);
+
+        allIdentifiers.sort((a, b) => b.timestamp - a.timestamp);
+        log(3, 'Sorted all identifiers by timestamp:', allIdentifiers);
+
+        const finalIdentifiers = new Map();
+        for (const id of allIdentifiers) {
+            if (!finalIdentifiers.has(id.type)) {
+                finalIdentifiers.set(id.type, id.value);
+            }
+        }
+        log(2, 'Selected unique, most recent identifiers:', finalIdentifiers);
+
+        const infoToCopy = [];
+        const desiredOrder = ["Name", "Steam ID", "EOS ID"];
+        for (const type of desiredOrder) {
+            if (finalIdentifiers.has(type)) {
+                // This line formats the output as "Label: Value"
+                infoToCopy.push(`${type}: ${finalIdentifiers.get(type)}`);
+            }
+        }
+        infoToCopy.push(`BM: <${window.location.href}>`);
+        const finalString = infoToCopy.join('\n');
+        log(3, "--- Final string to be copied: ---\n" + finalString);
+
+        navigator.clipboard.writeText(finalString)
+            .then(() => log(1, "✅ Player info copied!"))
+            .catch(err => console.error("🚫|BMUS: Clipboard copy failed", err));
+    }
+
+    async function fetchCBLData(steamID, container) {
+        const graphqlEndpoint = "https://communitybanlist.com/graphql";
+        const query = {
+            query: `query Search($id: String!) { steamUser(id: $id) { riskRating, activeBans: bans(expired: false) { edges { node { id } } }, expiredBans: bans(expired: true) { edges { node { id } } } } }`,
+            variables: { id: steamID }
+        };
+        const fetchOptions = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(query) };
+        const data = await fetchJSON(graphqlEndpoint, "CBL GraphQL", fetchOptions);
+        log(3, 'CBL Response Data:', data);
+        if (data?.data?.steamUser) {
+            const user = data.data.steamUser;
+            const riskRating = user.riskRating ?? 0;
+            const activeBans = user.activeBans?.edges?.length ?? 0;
+            const expiredBans = user.expiredBans?.edges?.length ?? 0;
+            const riskColor = riskRating > 5 ? "red" : riskRating > 0 ? "orange" : "white";
+            container.innerHTML = `<span style="color: ${riskColor};">CBL: ${riskRating}/10</span> | <span>Act: ${activeBans}</span> | <span>Exp: ${expiredBans}</span>`;
+        } else {
+            container.innerHTML = '<span>CBL: Not Found</span>';
+        }
+    }
+
+    function setupBanButton() {
+        const banButton = document.querySelector(SELECTORS.banButton);
+
+        // Only proceed if the button exists and hasn't been modified by us yet.
+        if (banButton && !banButton.dataset.modified) {
+            log(2, 'Found original ban button. Overriding its click behavior...');
+
+            const newBanButton = banButton.cloneNode(true);
+
+            newBanButton.href = "/rcon/bans?filter%5Borganization%5D=" + bmORG_ID;
+            newBanButton.dataset.modified = 'true';
+
+            banButton.parentNode.replaceChild(newBanButton, banButton);
+
+            log(1, 'Ban button link successfully overridden.');
+        }
+    }
+
+    function updateOrgEditPage() {
+        if (!state.page.isOrgEditPage) {
+            log(2, 'Setting up Organization Edit Page...');
+            state.page.isOrgEditPage = true;
+        }
+        document.querySelectorAll(SELECTORS.orgRoleList).forEach(li => {
+            if (li.dataset.modified) return;
+            const firstTextNode = Array.from(li.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '');
+            if (firstTextNode) {
+                li.insertBefore(document.createTextNode(' ||| '), firstTextNode.nextSibling);
+            }
+            li.dataset.modified = 'true';
+        });
+    }
+
+    function setupCornerButtons() {
+        if (document.querySelector(SELECTORS.cornerButtonContainer)) return;
+        const container = document.createElement("div");
+        container.id = SELECTORS.cornerButtonContainer.substring(1);
+        Object.assign(container.style, { position: "fixed", bottom: "10px", right: "10px", zIndex: "99999" });
+        const versionButton = document.createElement("button");
+        versionButton.textContent = `v${EXTENSION_VERSION}`;
+        Object.assign(versionButton.style, { background: "black", color: "white", border: "1px solid white", borderRadius: "5px", padding: "5px", fontSize: "10px", cursor: "pointer" });
+        container.appendChild(versionButton);
+        document.body.appendChild(container);
+        log(2, 'Corner buttons set up.');
+    }
+
+    function handleDOMChange() {
+        log(3, 'DOM Change Detected, running checks...');
+        const onPlayerPage = document.querySelector(SELECTORS.playerPage);
+        if (onPlayerPage) {
+            setupPlayerPage();
+        } else {
+            if (state.page.isPlayerPage) {
+                log(1, 'Left player page, cleaning up.');
+                document.querySelector(SELECTORS.actionsContainer)?.remove();
+                state.page.isPlayerPage = false;
+            }
+        }
+        if (document.querySelector(SELECTORS.logContainer)) { updateLogView(); }
+        if (document.querySelector(SELECTORS.orgEditPage)) { updateOrgEditPage(); } else { state.page.isOrgEditPage = false; }
+        setupBanButton();
+    }
+
+    async function main() {
+        log(1, `🚀 BMUS v${EXTENSION_VERSION}: Initializing...`);
+        const [customConfig, adminList] = await Promise.all([fetchJSON(SOURCES.customConfig, "Custom Config"), fetchJSON(SOURCES.adminList, "Admin List")]);
+        if (!customConfig) {
+            showVersionMismatchWarning(EXTENSION_VERSION, "Error", `Could not load required configuration from:\n${SOURCES.customConfig}`);
+            return;
+        }
+        state.config = customConfig;
+        const remoteVersion = state.config?.chrome_extension_version;
+        if (!remoteVersion) {
+            showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", `Remote version is missing from config.\nURL: ${SOURCES.customConfig}`);
+        } else if (remoteVersion !== EXTENSION_VERSION) {
+            showVersionMismatchWarning(EXTENSION_VERSION, remoteVersion, `Your script version is out of date. Please update.\nConfig URL: ${SOURCES.customConfig}`);
+        } else {
+            log(1, `Extension version (${EXTENSION_VERSION}) is up to date.`);
+        }
+        if (adminList) {
+            state.adminLists.group1 = new Set(adminList.group1);
+            state.adminLists.group2 = new Set(adminList.group2);
+            state.adminLists.group3 = new Set(adminList.group3);
+            log(2, 'Admin lists loaded.');
+        }
+        injectGlobalCSS();
+        setupCornerButtons();
+        const observer = new MutationObserver(handleDOMChange);
+        observer.observe(document.body, { childList: true, subtree: true });
+        handleDOMChange();
+        log(1, "👀 Observer is active.");
+    }
+
+    main();
+})();
