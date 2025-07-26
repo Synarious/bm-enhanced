@@ -16,10 +16,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: 🔎 Log initial file structure
+      run: |
+        echo "Listing all files in the repository to verify paths:"
+        ls -R
+
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'  # Use a current LTS Node.js version
+        node-version: '20'
 
     - name: Install dependencies
       run: npm install
@@ -27,16 +32,35 @@ jobs:
     - name: Minify JS
       run: npx uglify-js code/source.js -o code/source.min.js
 
+    - name: 🔎 Inspect minified file
+      run: |
+        echo "Checking if minified file was created and is not empty:"
+        ls -l code/source.min.js
+        echo "--- First 200 characters of minified file ---"
+        head -c 200 code/source.min.js
+        echo
+        echo "-------------------------------------------"
+
+    - name: 🔎 Inspect target file before replacement
+      run: |
+        echo "Checking line count of the target file:"
+        wc -l code/tampermonkey_userscript/bm-enhanced.min.js
+        echo "--- Displaying lines 16-18 of target file BEFORE replacement ---"
+        sed -n '16,18p' code/tampermonkey_userscript/bm-enhanced.min.js
+        echo "------------------------------------------------------------"
+
     - name: Replace Line 17 with minified code
-      # This command replaces line 17 with the content of source.min.js
-      # It's the most reliable method and avoids issues with special characters.
       run: sed -i -e '17r code/source.min.js' -e '17d' code/tampermonkey_userscript/bm-enhanced.min.js
+
+    - name: 🔎 Inspect target file after replacement
+      run: |
+        echo "--- Displaying first 30 lines of target file AFTER replacement ---"
+        head -n 30 code/tampermonkey_userscript/bm-enhanced.min.js
+        echo "------------------------------------------------------------"
 
     - name: Update @version in bm-enhanced.min.js
       run: |
-        # Extracts the version from the source JS file
         version=$(grep -oP 'const EXTENSION_VERSION = "\K[^"]+' code/source.js)
-        # Replaces the old version number on line 4 with the new one
         sed -i "4s#^// @version .*#// @version $version#" code/tampermonkey_userscript/bm-enhanced.min.js
 
     - name: Commit and push changes
@@ -44,6 +68,5 @@ jobs:
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
         git add code/source.min.js code/tampermonkey_userscript/bm-enhanced.min.js
-        # The '||' part prevents the workflow from failing if there are no changes
         git commit -m "Minify JS and Update Versions" || echo "No changes to commit"
         git push
