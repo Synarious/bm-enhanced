@@ -34,9 +34,9 @@ jobs:
         sed -i '17s~.*~'"$(sed 's/[\/&]/\\&/g' "$tmp_file")"'~' code/tampermonkey_userscript/bm-enhanced.min.js
         rm "$tmp_file"
 
-    - name: Update @version in bm-enhanced.min.js to CONST version
+    - name: Update @version in bm-enhanced.min.js to CONST EXTENSION_VERSION
       run: |
-        version=$(grep -oP 'const version = "\K[^"]+' code/source.js)
+        version=$(grep -oP 'const EXTENSION_VERSION = "\K[^"]+' code/source.js)
         sed -i "4s|// @version [0-9]*\(\.[0-9]*\)\?|// @version $version|" code/tampermonkey_userscript/bm-enhanced.min.js
 
     - name: Commit and push changes
