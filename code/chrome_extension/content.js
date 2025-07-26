@@ -1,8 +1,8 @@
 const EXTENSION_VERSION = "3.00"; // This number must match termList.json or the extension will warn you about a version mismatch. This makes sure users are running the correct version of the script.
 const bmORG_ID = 58064; // This is the organization ID for the BMUS organization. It is used to filter the ban list to only show bans from this organization.
 const SOURCES = {
-    adminList: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/adminList.json",
-    customConfig: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed-ce/config/termList.json",
+    adminList: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed/config/adminList.json",
+    customConfig: "https://raw.githubusercontent.com/Synarious/bm-userscript/refs/heads/unnamed/config/termList.json",
 };
 
 /*
