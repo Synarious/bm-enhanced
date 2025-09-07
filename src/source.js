@@ -252,6 +252,7 @@ const SELECTORS = {
                 color: 'lime',
             },
             // Rules for text colors and special backgrounds
+            { phrases: sets.grayedOut, color: colors.cGrayed },
             { phrases: sets.teamKilled, color: colors.cTeamKilled, backgroundColor: '#292135' },
             { phrases: sets.joinedServer, color: colors.cJoined },
             { phrases: sets.leftServer, color: colors.cLeftServer },
@@ -260,8 +261,7 @@ const SELECTORS = {
             { phrases: sets.coloredGroup1, color: colors.cColoredGroup1 },
             { phrases: sets.coloredGroup2, color: colors.cColoredGroup2 },
             { phrases: sets.coloredGroup3, color: colors.cColoredGroup3 },
-            { phrases: sets.trackedTriggers, color: colors.cTracked },
-            { phrases: sets.grayedOut, color: colors.cGrayed },
+            { phrases: sets.trackedTriggers, color: colors.cTracked }
         ];
 
         logMessages.forEach(element => {
