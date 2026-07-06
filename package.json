@@ -1,9 +1,11 @@
 {
   "name": "bm-enhanced",
-  "version": "3.0",
+  "version": "3.01",
   "description": "",
   "main": "minify.js",
   "scripts": {
+    "update": "node scripts/update-deps.js",
+    "build": "node minify.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -17,6 +19,7 @@
   },
   "homepage": "https://github.com/Synarious/bm-enhanced#readme",
   "dependencies": {
+    "dotenv": "^17.4.2",
     "terser": "^5.44.0"
   },
   "devDependencies": {

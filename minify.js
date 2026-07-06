@@ -46,6 +46,7 @@ async function runLint() {
  * 1. Minifies the source JavaScript.
  * 2. Builds a Tampermonkey script from a template.
  * 3. Builds a Chrome Extension content script.
+ * 4. Updates the Chrome Extension manifest version.
  */
 async function runBuild() {
   // --- Configuration: Define all file paths ---
@@ -55,6 +56,7 @@ async function runBuild() {
     tampermonkeyTemplate: path.join(__dirname, 'builds', 'tampermonkey_userscript', 'template.user.js'),
     tampermonkeyOutput: path.join(__dirname, 'builds', 'tampermonkey_userscript', 'bm-enhanced.min.js'),
     chromeExtensionOutput: path.join(__dirname, 'builds', 'chrome_extension', 'content.js'),
+    manifest: path.join(__dirname, 'builds', 'chrome_extension', 'manifest.json'),
   };
 
   try {
@@ -124,12 +126,28 @@ async function runBuild() {
     await fs.writeFile(paths.chromeExtensionOutput, minifiedCode);
     console.log(`  - Chrome Extension script written to: ${paths.chromeExtensionOutput}`);
 
+    // --- 5. Update the Chrome Extension manifest version ---
+    console.log('\nTask 5: Updating Chrome Extension manifest version...');
+    console.log(`  - Reading manifest from: ${paths.manifest}`);
+    const manifestRaw = await fs.readFile(paths.manifest, 'utf8');
+    const manifest = JSON.parse(manifestRaw);
+    const numericVersion = parseFloat(version);
+    if (isNaN(numericVersion)) {
+      throw new Error(`Cannot parse version "${version}" as a number for manifest.json`);
+    }
+    const manifestVersion = String(numericVersion);
+    console.log(`  - Updating manifest version from "${manifest.version}" to "${manifestVersion}"`);
+    manifest.version = manifestVersion;
+    await fs.writeFile(paths.manifest, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+    console.log(`  - Chrome Extension manifest updated: ${paths.manifest}`);
+
     console.log('--------------------------------------------------');
     console.log('✨ Build finished successfully!');
     console.log('\nGenerated/Updated Files:');
     console.log(`  1. ${paths.minifiedSource}`);
     console.log(`  2. ${paths.tampermonkeyOutput}`);
     console.log(`  3. ${paths.chromeExtensionOutput}`);
+    console.log(`  4. ${paths.manifest}`);
 
   } catch (err) {
     console.error('\n🚫🚫🚫 BUILD FAILED 🚫🚫🚫');
