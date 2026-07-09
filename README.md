@@ -1,48 +1,167 @@
 ## About This Repository
-This project is a real-time Chrome extension and tampermonkey userscript for Battlemetrics.com. It was created as a passion project to help server admins to better moderate their communities and read the logs of active servers in games with dozens of online users.
+This project is a real-time Chrome extension and Tampermonkey userscript for Battlemetrics.com. It was created as a passion project to help server admins better moderate their communities and read the logs of active servers in games with dozens of online users.
 
-It's free and open source, please consider leaving a coffee https://ko-fi.com/synarion if you would like. 
+It's free and open source — please consider leaving a coffee at [ko-fi.com/synarion](https://ko-fi.com/synarion) if you'd like.
 
-## Requirements & Install
-Option 1: Chrome Extension (Chrome Only)
-- Chrome based browser (v130+ Tested) with **DEV MODE** enable (required).
-Option 2: Tampermonkey Extension (Chrome & Firefox/Zen)
-- Tampermonkey Browser Extension: [Chrome](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en&pli=1) v120+ OR [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) 78+ (Tested on stable). 
+## Features
 
-Which is better? For chrome, the extension has reduced permission scope compared to Tampermonkey which has access to all sites by default. I haven't benchmarked them, but I suspect the extension is better than Tampermonkey.
+### Log Viewer
+- **Keyword highlighting** — Color-code log messages based on configurable phrases (admin actions, team kills, warnings, kicks, bans, custom triggers).
+- **Admin name coloring** — Staff names are highlighted in 3 distinct colors based on their group, with clan tag/prefix stripping for accurate matching.
+- **Join/leave dimming** — Gray out repetitive join/leave events to focus on what matters.
+- **Timestamp tooltips** — Hover over any timestamp to see the full localized date and exact time down to the second.
+- **Server name coloring** — Color-code server names (e.g. green for Server #1, yellow for Server #2) for quick identification.
+- **Note/flag icon highlighting** — Default note icons are colorized for better visibility when scanning player lists.
 
-> [!WARNING]
-> Chromium browsers (Chrome, Edge, Brave etc..) all require "DEV MODE" enabled in the extension settings area (see "Getting Started" guide below).
+### Player Profiles
+- **Copy player info** — One-click copy button captures Name, Steam ID, EOS ID, and BM profile URL to clipboard.
+- **CBL integration** — Automatic [CommunityBanList.com](https://communitybanlist.com/) lookup displays risk rating, active bans, and expired bans for any Steam profile.
 
-## Features Of This Project
-------- For Users -------
-* Highlight words within the log, based on phrases to help easily moderate.
-* Access time in seconds (when hovering on the time) to know the exact second things occur. 
-* Highlights admins with 3 different possible colors, knowing if admin is online easily.
-* Faster ban viewing, automatically go to your ORG bans instead of "unsorted". 
-* Copy/Paste button when viewing player profiles, copy all data at once.
-* [CommunityBanList](https://communitybanlist.com/) CBL auto lookup for SteamIDs.
-* Fixes "RCON disabled warning" so it doesn't overflow over other servers when many servers are collapsed.
-* Organized flags are better, for ORGs with many flags. Less scrolling!
-* Grays out unimportant events like joins/leaves.
-* Highlights the default note icon for better visablity when viewing players. 
+### Organization Management
+- **Ban button redirect** — Ban page link automatically filters to your organization's ban list instead of "unsorted."
+- **Organized flags** — Flag lists are restructured for orgs with many flags, reducing vertical scrolling.
+- **Role list formatting** — Adds separators to role member lists on the org edit page for easier reading.
+- **RCON warning fix** — Prevents the "RCON disabled" banner from overflowing over collapsed servers.
 
----- For Community Owners/Devs -------
-* Real-time updating, using github repo as update source for most ORG settings/data.
-* Extension/script version checking, alert users across your ORG when updates are required.
-* Easily modifiable.
-* Divide up permissions, point adminList.json and termList.sjon to a different Github Repo and keep the script under lock and key.
-* Wiki to help users install and set up the script or extension for you to share.
-* Tested in Squad/Arma Reforger communities, support likely in other games (unconfirmed)
-* Website (github pages) adminList.json builder [Example](https://synarious.github.io/bm-enhanced/)
+### Real-Time Configuration
+- **Remote JSON configs** — Admin lists and keyword sets are fetched from GitHub-hosted JSON files, allowing real-time updates without reinstalling the extension or userscript.
+- **Version checking** — Displays a full-screen warning overlay when a new script version is available, ensuring your entire org stays updated.
+- **No page refresh** — Uses a MutationObserver to apply all enhancements as you navigate and as new log entries appear in real time.
 
-## Getting Started 
-### See [Getting Started Wiki](https://github.com/Synarious/bm-enhanced/wiki ) on how to install & more.
+### Developer-Friendly
+- **Dual build targets** — Ships as both a Chrome Extension (Manifest V3) and a Tampermonkey userscript from a single source file. The Tampermonkey userscript also works on mobile browsers with userscript support (e.g., Brave, Kiwi).
+- **Modular configs** — Point `adminList.json` and `termList.json` to your own repo to separate permissions from script code.
+- **Admin list pipeline** — Automated scripts to fetch org members from Battlemetrics API, group by role, and resolve SteamIDs to names.
+- **Build script** — `node minify.js` runs ESLint, minifies via Terser, and generates both extension and userscript outputs in one run.
+- **Tested** — Confirmed working in Squad and Arma Reforger communities; likely compatible with other Battlemetrics-supported games.
+
+## Getting Started
+
+### Option A: Chrome Extension
+
+1. Download or clone this repository.
+2. Open Chrome and navigate to `chrome://extensions/`.
+3. Enable **Developer mode** (toggle in the top-right corner).
+4. Click **Load unpacked** and select the `builds/chrome_extension/` folder.
+5. The extension is now active on `battlemetrics.com`. Pin it for easy access.
+
+### Option B: Tampermonkey Userscript
+
+1. Install the [Tampermonkey extension](https://www.tampermonkey.net/) for your browser.
+   > On Chrome, also enable **Developer mode** and **Userscript** permission under Tampermonkey's extension settings.
+2. Open the file `builds/tampermonkey_userscript/bm-enhanced.min.js` in a text editor and copy its contents.
+3. Click the Tampermonkey icon → **Create a new script**.
+4. Replace the default template with the copied code and save (Ctrl+S).
+5. The script will run automatically on Battlemetrics.
+
+### Customizing for Your Organization
+
+1. **`builds/customization.json`** — The single source of truth for all build-time configuration. Set your version, org ID, remote data source URLs, Tampermonkey metadata (name, author, update/download URLs), and Chrome Extension name/description.
+2. **`src/config/termList.json`** — Set your server names, keywords, colors, and admin name prefixes.
+3. **`src/config/adminList.json`** — Define admin groups (group1, group2, group3) with player names. You can fill this in by hand, or use the optional automated pipeline below.
+4. Run `node minify.js` to rebuild both the extension and userscript outputs. The build script reads `customization.json` and resolves all placeholders in source and template files.
+5. Host the resulting `builds/tampermonkey_userscript/bm-enhanced.min.js` on your server or GitHub repo at the URL specified in `customization.json`. This enables automatic updates for your users.
+
+### Automating the Admin List (Optional)
+
+> This entire pipeline and `.env` setup is **optional**. If you prefer, just edit `src/config/adminList.json` by hand — paste player names into the three groups and skip straight to `node minify.js`. The pipeline exists for orgs that want to keep the list in sync automatically.
+
+The admin list pipeline automates building `src/config/adminList.json` from your Battlemetrics org. It runs in 3 stages from `admin_list/`:
+
+```
+cd admin_list
+node buildAdminList.js
+```
+
+#### Prerequisites — `.env` (optional)
+
+Copy `example.env` to `.env` in the project root. All three variables are required only if using `buildAdminList.js`. `.env` is gitignored — never commit it.
+
+##### `BM_TOKEN` — Battlemetrics API Bearer Token
+
+*Used by: `helpers/fetchAdmin.js`*
+
+1. Sign in at [https://www.battlemetrics.com/developers](https://www.battlemetrics.com/developers).
+2. Create a **Personal Access Token**. Battlemetrics uses OAuth 2.0 Bearer tokens for API authorization.
+3. Select the minimum required scope. The pipeline only calls one read-only endpoint:
+   ```
+   GET https://api.battlemetrics.com/organizations/{ORG_ID}?include=organizationUser
+   ```
+   Grant access to **organization data** (no ban, server, or write permissions needed).
+4. Copy the generated token and paste it as `BM_TOKEN=` in your `.env`.
+
+> Scopes are restrictive — they limit what the token can do. A broad scope (e.g., `organization`) permits all organization actions; a narrower scope (e.g., `organization:read`) further restricts to read-only. Either works.
+
+##### `ORG_ID` — Your Battlemetrics Organization ID
+
+*Used by: `helpers/fetchAdmin.js`*
+
+1. Go to your organization's page on Battlemetrics (e.g., `https://www.battlemetrics.com/rcon/org/58064`).
+2. The number in the URL is your **ORG_ID**. Paste it as `ORG_ID=` in your `.env`.
+3. This ID tells the API which organization's member list to pull.
+
+> Tip: You can also find it under **Account → Organizations** — hover or click your org name and grab the ID from the link.
+
+##### `STEAM_API_KEY` — Steam Web API Key
+
+*Used by: `helpers/getSteamName.js`*
+
+1. Go to [https://steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) and sign in.
+2. If you don't have one yet, fill in the domain field (use `localhost` if running locally) and click **Register**.
+3. Copy the 32-character hex key and paste it as `STEAM_API_KEY=` in your `.env`.
+4. Step 3 of the pipeline uses this key to call `ISteamUser/GetPlayerSummaries`, resolving each admin's SteamID to their Steam profile name so `adminList.json` contains human-readable names instead of raw IDs.
+
+> Steam rate-limits this API. The pipeline respects the limit with 3-second delays between requests and caches results in `helpers/steam-name-cache.json` so subsequent runs only fetch new users.
+
+#### Pipeline Stages
+
+**Step 1: `helpers/fetchAdmin.js`** — Uses `dotenv` to load `.env`, then calls the Battlemetrics API:
+```
+GET https://api.battlemetrics.com/organizations/{ORG_ID}?include=organizationUser
+Authorization: Bearer {BM_TOKEN}
+```
+Raw JSON is saved to `helpers/admin-data.json` (gitignored). On failure, the error is logged to `helpers/admin-data-error.txt`.
+
+**Step 2: `helpers/parseAdmin.js`** — Reads the raw data, filters out nicknames listed in `helpers/blacklistConfig.json`, extracts only users with SteamIDs, then groups them by Battlemetrics role:
+- **Group 3** — Director, or users holding Reforger Admin + Squad roles (the ID of roles as defined by Battelmetrics API)
+- **Group 2** — Reforger Admin only
+- **Group 1** — Squad Admin or Squad Moderator
+(the ID of roles as defined by Battelmetrics API must be defined in the file.)
+
+Writes SteamIDs to `src/config/adminList.json` and a human-readable debug log to `helpers/admin-parse-debug.txt`.
+
+**Step 3: `helpers/getSteamName.js`** — Loads `STEAM_API_KEY` from `.env`, reads the SteamIDs from step 2, and resolves each one to a Steam profile name via the Steam Web API (`ISteamUser/GetPlayerSummaries`). Uses a persistent cache (`helpers/steam-name-cache.json`, gitignored) so subsequent runs only fetch new/uncached IDs. Rate-limited at 3s per request with 3 retries on failure. Overwrites `src/config/adminList.json` with resolved names.
+
+### Requirements
+
+| | Chrome Extension | Tampermonkey |
+|---|---|---|
+| Browser | Chrome/Edge/Brave (v130+) | Chrome v120+ or Firefox 78+ |
+| Dev Mode | Required | Not required |
+| Permissions | Limited to battlemetrics.com, communitybanlist.com, raw.githubusercontent.com | All sites (Tampermonkey default) |
 
 ## Contributions & Notes For Devs
-- Only code you should modify is [ src/source.js | config/adminList.json | config/termList.json ] as the minify.js will handle the rest. You can run minify.js locally before pushing, or rely on the Github Action to run it.
-- [LiQ Gaming](https://liqgaming.com/#/) - Avengerian (time seconds), Got2bHockey (Github Actions)
+
+### Versioning
+
+Four files carry version numbers. Here's what each controls:
+
+| File | Version | Purpose | Auto-managed? |
+|---|---|---|---|---|
+| `builds/customization.json:2` — `"version"` | `"4.1"` | **Single source of truth.** The build script reads this value and injects it into source, manifest, and Tampermonkey output. Bump this on every release. | Manual |
+| `src/config/termList.json:2` — `"version"` | `"3.01"` | Should match the version in `customization.json`. Purely informational. | Manual |
+| `src/config/termList.json:3` — `"chrome_extension_version"` | `"3.01"` | **Runtime version check.** Every time the script loads, it fetches this JSON remotely and compares against the version baked into the script. If they differ, a full-screen warning overlay tells users to update. Must match the `version` in `customization.json` or the check fires. | Manual |
+| `builds/chrome_extension/manifest.json` — `"version"` | (auto-filled) | Chrome's extension manifest. **Auto-updated** by the build script from `customization.json`. The version is parsed as a number (e.g. `"4.1"` → `4.1`) and written here. | Automated by `minify.js` |
+| `builds/tampermonkey_userscript/template.user.js` — `@version` | (auto-filled) | The build script reads the version from `customization.json` and writes the `@version` line in the output automatically. Never edit this manually. | Automated by `minify.js` |
+| `package.json:3` — `"version"` | `"3.0"` | npm package metadata only. Not consumed by any build or runtime logic. | Manual |
+
+**Update dependencies:** `npm run update` checks the npm registry for each dependency. Any package whose latest version was published within the last **7 days** is skipped — a supply chain security buffer to avoid pulling in freshly published releases that haven't had community vetting time. The buffer is defined in `scripts/update-deps.js:6`.
+
+**When releasing:** bump `version` in `builds/customization.json`, update both `version` and `chrome_extension_version` in `src/config/termList.json` to match, then run `node minify.js` to regenerate all build outputs (including manifest.json and Tampermonkey `@version`).
+
+### Development Notes
+- Only files you should modify are [ builds/customization.json | config/adminList.json | config/termList.json ]. `source.js` and `template.user.js` use placeholders resolved from `customization.json` by `minify.js`. You can run minify.js locally before pushing, or rely on the Github Action to run it.
+- [LiQ Gaming](https://liqgaming.com/#/) - Avengerian (time seconds), Got2bHockey (Github Actions & Fixes)
 - /GmG\ - Eddie (button fixes and CBL bits)
 - This project's scope is limited to reading/modifying the **locally** delivered web content and locally injecting CSS and web improvements without touching the BM API (as such this code could run offline). Code suggestions that automates or performs interactive API requests like bans, kicks and queries using your Battlemetrics tokens will not be merged into this project as that approaches being a self-bot which could result in your BM account being suspended. Add such code at your own risk.
-- Auto updating isn't functional due to changes in Chrome Manifest V3, there are some possible workarounds and sadly have been proven to be challenging to get working. Instead of auto updating the entire script, it pulls from JSON files which is tad safer and allows for updating in real time without forcing clients/machines to update. In general the extension/scripts should only need to be updated during feature/breaking updates. 
 

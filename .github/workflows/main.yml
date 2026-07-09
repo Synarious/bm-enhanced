@@ -33,7 +33,7 @@ jobs:
       run: |
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "GitHub Actions"
-        git add builds/source.min.js builds/tampermonkey_userscript/bm-enhanced.min.js builds/chrome_extension/content.js builds/source.min.js
+        git add builds/source.min.js builds/source-custom.js builds/tampermonkey_userscript/bm-enhanced.min.js builds/chrome_extension/content.js builds/chrome_extension/manifest.json
         if ! git diff --staged --quiet; then
           git commit -m "build: Minify JS and update versions [skip ci]"
           git push

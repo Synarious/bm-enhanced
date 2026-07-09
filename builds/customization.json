@@ -1,0 +1,28 @@
+{
+  "version": "4.1",
+  "orgId": 58064,
+  "dataSources": {
+    "adminList": "https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/src/config/adminList.json",
+    "customConfig": "https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/src/config/termList.json"
+  },
+  "tampermonkey": {
+    "name": "Battlemetrics Toolkit - Desktop",
+    "namespace": "https://www.battlemetrics.com/",
+    "description": "Modifies the rcon panel for battlemetrics to help color code important events and details about players.",
+    "author": "Synarion (aka Synarious @ syfusion.com/github)",
+    "updateURL": "https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/builds/tampermonkey_userscript/bm-enhanced.min.js",
+    "downloadURL": "https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/builds/tampermonkey_userscript/bm-enhanced.min.js"
+  },
+  "adminList": {
+    "roles": {
+      "moderator1": "37219",
+      "admin1": "37220",
+      "admin2": "",
+      "super_admin": "24942"
+    }
+  },
+  "chromeExtension": {
+    "name": "Battlemetrics Enhanced",
+    "description": "Modifies the RCON panel for Battlemetrics with enhancements and color coding."
+  }
+}

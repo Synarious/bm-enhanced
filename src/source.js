@@ -1,29 +1,21 @@
-// ==================================================================================
-// SECTION: GLOBAL CONFIGURATION & CONSTANTS
-// ==================================================================================
+// Must match termList.json version
+const EXTENSION_VERSION = "__VERSION__"; // Don't do any 0's as the minify will drop it.
+const BM_ORG_ID = "__ORG_ID__";
 
-// Must match termList.json to prevent version mismatch warnings.
-const EXTENSION_VERSION = "3.01";
-// BMUS Org ID, used for filtering the ban list.
-const bmORG_ID = 58064;
-const SOURCES = {
-    adminList: "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/unnamed/src/config/adminList.json",
-    customConfig: "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/unnamed/src/config/termList.json",
-};
+const DATA_SOURCES = "__DATA_SOURCES__";
 
-// DOM selectors.
 const SELECTORS = {
-    logContainer: '.ReactVirtualized__Grid__innerScrollContainer, .css-b7r34x',
-    logMessages: ".css-ym7lu8",
-    logPlayerNames: ".css-1ewh5td",
-    logActivityNames: ".css-fj458c",
-    logNoteFlags: ".css-he5ni6",
-    logServerNames: ".css-1ymmsk5",
-    logTimestamps: ".css-z1s6qn",
-    logTimestampsLong: ".css-1jtoyp",
+    logContainer: '.ReactVirtualized__Grid__innerScrollContainer',
+    logMessages: '[data-testid="activity-item"]',
+    logPlayerNames: 'a[href^="/rcon/players/"]',
+    logActivityNames: 'a[href^="/rcon/players/"]',
+    logNoteFlags: 'i, svg, span.glyphicon',
+    logServerNames: '[data-testid="activity-item"] span, [data-testid="activity-item"] a',
+    logTimestamps: 'time[datetime], [datetime]',
+    logTimestampsLong: 'time[datetime], [datetime]',
     playerPage: "#RCONPlayerPage",
     playerPageTitle: "#RCONPlayerPage h2",
-    playerInfoTable: '#RCONPlayerPage table.css-11gv980',
+    playerInfoTable: '#RCONPlayerPage table',
     orgEditPage: '#RCONOrgEditPage',
     orgRoleList: '#RCONOrgEditPage ul.list-unstyled > li',
     banButton: 'a[href="/rcon/bans"]',
@@ -33,20 +25,10 @@ const SELECTORS = {
     cblInfoContainer: "#CBL-info-container",
 };
 
-
-/*
- *
- * You shouldn't need to modify anything below this. Modify the json files in the config folder instead.
- *
- */
-
 (async () => {
-
-    // ==================================================================================
-    // SECTION: SCRIPT STATE & DEBUGGING
-    // ==================================================================================
-
     const DEBUG_LEVEL = 1; // 0=Off, 1=Basic, 2=Detailed, 3=Verbose
+    const CACHE_TTL_MS = 300000; // 5 minutes
+    const CACHE_PREFIX = 'bmus_cache_';
 
     const state = {
         config: null,
@@ -59,34 +41,22 @@ const SELECTORS = {
             isPlayerPage: false,
             isLogView: false,
             isOrgEditPage: false
-        }
+        },
+        cachedColorMap: new Map()
     };
 
     function log(level, ...args) {
-        if (level <= DEBUG_LEVEL) {
-            console.log('BMUS_LOG |', ...args);
-        }
+        if (level <= DEBUG_LEVEL) console.log('BMUS_LOG |', ...args);
     }
-
-    // ==================================================================================
-    // SECTION: CORE UTILITIES - Fetch remote JSON for src/config/*.json files.
-    // ==================================================================================
 
     async function fetchJSON(url, sourceName, options = {}) {
         try {
             const response = await fetch(url, options);
-
-            // Handle rate limiting
             if (response.status === 429) {
-                console.warn(`⏳|BMUS: Rate limited when fetching ${sourceName}. Status: 429`);
-                // Optionally implement retry logic here
+                console.warn(`⏳|BMUS: Rate limited fetching ${sourceName}`);
                 return null;
             }
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status} for ${sourceName}`);
-            }
-
+            if (!response.ok) throw new Error(`HTTP ${response.status} for ${sourceName}`);
             const text = await response.text();
             return text ? JSON.parse(text) : null;
         } catch (error) {
@@ -95,9 +65,33 @@ const SELECTORS = {
         }
     }
 
-    // ==================================================================================
-    // SECTION: UI, STYLING, & WARNINGS - Injects global CSS, shows version mismatch warning.
-    // ==================================================================================
+    async function fetchJSONCached(url, sourceName, options = {}) {
+        const cacheKey = CACHE_PREFIX + sourceName.replace(/\s+/g, '_').toLowerCase();
+        const now = Date.now();
+
+        try {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                const entry = JSON.parse(cached);
+                if (now - entry.timestamp < CACHE_TTL_MS) {
+                    log(2, `📦 Using cached ${sourceName} (${Math.round((now - entry.timestamp) / 1000)}s old)`);
+                    return entry.data;
+                }
+            }
+        } catch {
+            void 0;
+        }
+
+        const data = await fetchJSON(url, sourceName, options);
+        if (data) {
+            try {
+                localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: now }));
+            } catch {
+                void 0;
+            }
+        }
+        return data;
+    }
 
     function injectGlobalCSS() {
         if (document.getElementById('bmus-global-styles')) return;
@@ -207,51 +201,45 @@ const SELECTORS = {
         document.getElementById("closeWarningBtn").addEventListener("click", () => warningBox.remove());
     }
 
-    // ==================================================================================
-    // SECTION: LOG VIEW LOGIC - applies seconds when hovering over timestamps, styles log
-    // messages, colors admin names, colors server names, colors note flags
-    // ==================================================================================
-
     function applyTimeStamps() {
-        const timeStampElements = document.querySelectorAll(`${SELECTORS.logTimestamps}, ${SELECTORS.logTimestampsLong}`);
-
-        const tooltipFormatOptions = {
+        const elements = document.querySelectorAll(`${SELECTORS.logTimestamps}, ${SELECTORS.logTimestampsLong}`);
+        const formatOptions = {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
             hour: 'numeric', minute: '2-digit', second: '2-digit',
             timeZoneName: 'short', hour12: true
         };
-
-        timeStampElements.forEach(element => {
-            // Skip elements that have already been processed
-            if (element.dataset.timestampApplied) return;
-
-            const utcTime = element.getAttribute("datetime");
-            if (utcTime) {
-                const date = new Date(utcTime);
-                // Ensure the date is valid before trying to format it
-                if (!isNaN(date.getTime())) {
-                    // Using 'undefined' for locale uses the browser's default locale
-                    element.title = date.toLocaleString(undefined, tooltipFormatOptions);
-                    element.dataset.timestampApplied = 'true';
-                }
-            }
+        elements.forEach(el => {
+            if (el.dataset.timestampApplied) return;
+            const utcTime = el.getAttribute("datetime");
+            if (!utcTime) return;
+            const date = new Date(utcTime);
+            if (isNaN(date.getTime())) return;
+            el.title = date.toLocaleString(undefined, formatOptions);
+            el.dataset.timestampApplied = 'true';
         });
     }
 
-    /**
-     * Applies color and background styles to log messages based on a set of rules.
-     * @param {NodeListOf<Element>} logMessages - The message elements to style.
-     * @param {object} config - The configuration object containing sets and colors.
-     */
+    function getLogMessageElements() {
+        const items = document.querySelectorAll(SELECTORS.logMessages);
+        if (items.length) return items;
+
+        const logPatterns = [
+            'was kicked', 'was warned', 'was banned',
+            'joined the server', 'left the server', 'team killed',
+            'requested', 'changed the map', 'set the next map',
+            'restarted the match', 'Trigger added flag'
+        ];
+
+        return [...document.querySelectorAll('li, tr, article, [class]')]
+            .filter(el => {
+                const text = el.textContent?.trim() || '';
+                return logPatterns.some(p => text.includes(p)) && text.length < 800;
+            });
+    }
+
     function styleLogMessages(logMessages, { sets, colors }) {
         const stylingRules = [
-            // Special rule for !admin calls (background color)
-            {
-                regex: /(?:\s|:|"|^)!admin/i, // Removed ^ anchor, added word boundary \b
-                backgroundColor: '#9a000040',
-                color: 'lime',
-            },
-            // Rules for text colors and special backgrounds
+            { regex: /(?:\s|:|"|^)!admin/i, backgroundColor: '#9a000040', color: 'lime' },
             { phrases: sets.grayedOut, color: colors.cGrayed },
             { phrases: sets.teamKilled, color: colors.cTeamKilled, backgroundColor: '#292135' },
             { phrases: sets.joinedServer, color: colors.cJoined },
@@ -265,8 +253,7 @@ const SELECTORS = {
         ];
 
         logMessages.forEach(element => {
-            const logLine = element.parentElement;
-            if (!logLine || logLine.dataset.styled) return;
+            if (element.dataset.styled) return;
 
             const textContent = element.textContent;
 
@@ -277,233 +264,167 @@ const SELECTORS = {
 
                 if (isMatch) {
                     if (rule.color) element.style.color = rule.color;
-                    if (rule.backgroundColor) logLine.style.backgroundColor = rule.backgroundColor;
-
-                    logLine.dataset.styled = 'true';
-                    break; // Rule applied, move to the next log element
+                    if (rule.backgroundColor) element.style.backgroundColor = rule.backgroundColor;
+                    element.dataset.styled = 'true';
+                    break;
                 }
             }
         });
     }
 
-    /**
-     * Builds a Map for quick lookups of BASE admin names to their group color.
-     * This map will contain only the admin names, without any prefixes.
-     * @returns {Map<string, string>} A map of base admin names to colors.
-     */
-    function buildAdminBaseNameColorMap({ adminLists, config }) {
-        const adminColorMap = new Map();
-        const colorMapping = [
-            { list: adminLists.group1, color: config.colors.cStaffGroup1 },
-            { list: adminLists.group2, color: config.colors.cStaffGroup2 },
-            { list: adminLists.group3, color: config.colors.cStaffGroup3 },
+    function buildAdminColorMap(config) {
+        const colorMap = new Map();
+        const groups = [
+            { list: state.adminLists.group1, color: config.colors.cStaffGroup1 },
+            { list: state.adminLists.group2, color: config.colors.cStaffGroup2 },
+            { list: state.adminLists.group3, color: config.colors.cStaffGroup3 },
         ];
-
-        for (const { list, color } of colorMapping) {
+        for (const { list, color } of groups) {
             if (!list || !color) continue;
-            for (const admin of list) {
-                adminColorMap.set(admin.trim(), color);
-            }
+            for (const admin of list) colorMap.set(admin.trim(), color);
         }
-        return adminColorMap;
+        return colorMap;
     }
 
-    /**
-     * Applies specific colors to admin names found in the logs. It handles names
-     * with and without prefixes by stripping prefixes before map lookup.
-     * @param {NodeListOf<Element>} adminNameElements - The name elements to style.
-     * @param {object} state - The global state object.
-     */
-    function styleAdminNames(adminNameElements, state) {
-        // 1. Build the map of base names to colors for fast lookups.
-        const adminBaseNameColorMap = buildAdminBaseNameColorMap(state);
-        if (adminBaseNameColorMap.size === 0) return;
-
+    // Handles admin names with/without prefixes by stripping prefixes before lookup
+    function styleAdminNames(adminNameElements) {
+        if (state.cachedColorMap.size === 0) return;
         const prefixes = state.config.namePrefixes || [];
 
-        adminNameElements.forEach(element => {
-            if (element.dataset.colored) return;
+        adminNameElements.forEach(el => {
+            if (el.dataset.colored) return;
+            const name = el.textContent.trim();
+            let color = state.cachedColorMap.get(name);
 
-            const nameFromLog = element.textContent.trim();
-            let color;
-
-            // 2. First, try a direct lookup (for names without prefixes).
-            color = adminBaseNameColorMap.get(nameFromLog);
-
-            // 3. If no direct match, iterate through prefixes and check again.
-            //    This correctly handles prefixes and any spaces that follow.
             if (!color) {
                 for (const prefix of prefixes) {
-                    if (nameFromLog.startsWith(prefix)) {
-                        // Strip the prefix and trim whitespace, then look up the base name.
-                        const baseName = nameFromLog.substring(prefix.length).trim();
-                        color = adminBaseNameColorMap.get(baseName);
-                        if (color) {
-                            break; // Found a match, no need to check other prefixes.
-                        }
+                    if (name.startsWith(prefix)) {
+                        color = state.cachedColorMap.get(name.substring(prefix.length).trim());
+                        if (color) break;
                     }
                 }
             }
 
-            // 4. If a color was found, apply it.
             if (color) {
-                element.style.color = color;
-                element.dataset.colored = 'true';
+                el.style.color = color;
+                el.dataset.colored = 'true';
             }
         });
     }
 
-    /**
-     * The main function to coordinate all styling updates for the log view.
-     * It queries the DOM once and delegates styling tasks to helper functions.
-     */
     function updateLogView() {
         if (!state.config) return;
 
-        // --- 1. Query the DOM once for all required elements ---
-        const logMessages = document.querySelectorAll(SELECTORS.logMessages);
+        const logMessages = getLogMessageElements();
         const adminNameElements = document.querySelectorAll(`${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`);
         const serverNameElements = document.querySelectorAll(SELECTORS.logServerNames);
         const noteFlagElements = document.querySelectorAll(SELECTORS.logNoteFlags);
 
-        // --- 2. Delegate styling tasks to specialized functions ---
         styleLogMessages(logMessages, state.config);
-        styleAdminNames(adminNameElements, state);
+        styleAdminNames(adminNameElements);
 
-        // --- 3. Handle simpler, direct styling ---
         const { serverName1, serverName2, colors } = state.config;
-        serverNameElements.forEach(element => {
-            if (element.dataset.colored) return;
-            const text = element.textContent;
-            if (text.includes(serverName1)) element.style.color = "green";
-            else if (text.includes(serverName2)) element.style.color = "yellow";
-            element.dataset.colored = 'true';
+        serverNameElements.forEach(el => {
+            if (el.dataset.colored) return;
+            const text = el.textContent;
+            if (text.includes(serverName1)) el.style.color = "green";
+            else if (text.includes(serverName2)) el.style.color = "yellow";
+            el.dataset.colored = 'true';
         });
 
-        noteFlagElements.forEach(element => {
-            if (!element.style.color) { // Avoid re-applying style
-                element.style.color = colors.cNoteColorIcon;
+        noteFlagElements.forEach(el => {
+            if (el.style.color) return;
+            const label = (
+                el.getAttribute("title") ||
+                el.getAttribute("aria-label") ||
+                el.closest("[title]")?.getAttribute("title") ||
+                el.closest("[aria-label]")?.getAttribute("aria-label") ||
+                ""
+            ).toLowerCase();
+            if ((label.includes("note") || label.includes("flag")) && el.textContent.trim().length < 3) {
+                el.style.color = colors.cNoteColorIcon;
             }
         });
 
-        // --- 4. Apply timestamp tooltips ---
         applyTimeStamps();
     }
 
-    // ==================================================================================
-    // SECTION: PLAYER PAGE LOGIC - For player pages within BattleMetrics.
-    // ==================================================================================
-
     async function fetchCBLData(steamID, container) {
-        const graphqlEndpoint = "https://communitybanlist.com/graphql";
         const query = {
             query: `query Search($id: String!) { steamUser(id: $id) { riskRating, activeBans: bans(expired: false) { edges { node { id } } }, expiredBans: bans(expired: true) { edges { node { id } } } } }`,
-            variables: {
-                id: steamID
-            }
+            variables: { id: steamID }
         };
-        const fetchOptions = {
+        const data = await fetchJSON("https://communitybanlist.com/graphql", "CBL GraphQL", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(query)
-        };
-        const data = await fetchJSON(graphqlEndpoint, "CBL GraphQL", fetchOptions);
-        log(3, 'CBL Response Data:', data);
+        });
         if (data?.data?.steamUser) {
-            const user = data.data.steamUser;
-            const riskRating = user.riskRating ?? 0;
-            const activeBans = user.activeBans?.edges?.length ?? 0;
-            const expiredBans = user.expiredBans?.edges?.length ?? 0;
+            const { riskRating = 0, activeBans, expiredBans } = data.data.steamUser;
+            const active = activeBans?.edges?.length ?? 0;
+            const expired = expiredBans?.edges?.length ?? 0;
             const riskColor = riskRating > 5 ? "red" : riskRating > 0 ? "orange" : "white";
-            container.innerHTML =
-                `<span style="color: ${riskColor};">CBL: ${riskRating}/10</span> | <span>Act: ${activeBans}</span> | <span>Exp: ${expiredBans}</span>`;
+            container.innerHTML = `<span style="color: ${riskColor};">CBL: ${riskRating}/10</span> | <span>Act: ${active}</span> | <span>Exp: ${expired}</span>`;
         } else {
             container.innerHTML = '<span>CBL: Not Found</span>';
         }
     }
 
     function copyPlayerInfo() {
-        log(2, '--- Starting copyPlayerInfo ---');
         const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
         if (!identifiersTable) {
-            console.error("BMUS_ERROR: Could not find identifiers table for copy action.");
+            console.error("BMUS_ERROR: Could not find identifiers table.");
             return;
         }
 
         const rows = identifiersTable.querySelectorAll('tbody > tr');
         let allIdentifiers = [];
 
-        rows.forEach((row, index) => {
+        rows.forEach(row => {
             const valueEl = row.querySelector('td[data-title="Identifier"] span');
-            const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
+            const typeCell = row.querySelector('td[data-title="Type"]');
             const timeEl = row.querySelector('td[data-title="Last Seen"] time');
-            if (valueEl && typeEl && timeEl) {
+            if (valueEl && typeCell && timeEl) {
                 allIdentifiers.push({
                     value: valueEl.textContent.trim(),
-                    type: typeEl.textContent.trim(),
+                    type: typeCell.textContent.trim(),
                     timestamp: new Date(timeEl.getAttribute('datetime'))
                 });
-            } else {
-                log(2, `Warning: Failed to parse row ${index}.`);
             }
         });
-        log(3, 'Parsed all identifiers:', allIdentifiers);
 
         allIdentifiers.sort((a, b) => b.timestamp - a.timestamp);
-        log(3, 'Sorted all identifiers by timestamp:', allIdentifiers);
 
         const finalIdentifiers = new Map();
         for (const id of allIdentifiers) {
-            if (!finalIdentifiers.has(id.type)) {
-                finalIdentifiers.set(id.type, id.value);
-            }
+            if (!finalIdentifiers.has(id.type)) finalIdentifiers.set(id.type, id.value);
         }
-        log(2, 'Selected unique, most recent identifiers:', finalIdentifiers);
 
         const infoToCopy = [];
-        const desiredOrder = ["Name", "Steam ID", "EOS ID"];
-        for (const type of desiredOrder) {
-            if (finalIdentifiers.has(type)) {
-                // This line formats the output as "Label: Value"
-                infoToCopy.push(`${type}: ${finalIdentifiers.get(type)}`);
-            }
+        for (const type of ["Name", "Steam ID", "EOS ID"]) {
+            if (finalIdentifiers.has(type)) infoToCopy.push(`${type}: ${finalIdentifiers.get(type)}`);
         }
         infoToCopy.push(`BM: <${window.location.href}>`);
-        const finalString = infoToCopy.join('\n');
-        log(3, "--- Final string to be copied: ---\n" + finalString);
 
-        navigator.clipboard.writeText(finalString)
+        navigator.clipboard.writeText(infoToCopy.join('\n'))
             .then(() => log(1, "✅ Player info copied!"))
             .catch(err => console.error("🚫|BMUS: Clipboard copy failed", err));
     }
 
     async function setupPlayerPage() {
-        log(2, 'setupPlayerPage() called.');
         if (state.page.isPlayerPage) return;
 
         const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
-        if (!identifiersTable) {
-            log(2, 'setupPlayerPage: Identifiers table NOT found yet.');
-            return;
-        }
-        log(1, 'Identifiers table found. Proceeding with player page setup.');
+        if (!identifiersTable) return;
+        log(1, 'Setting up player page.');
 
         let steamID = null;
-        const rows = identifiersTable.querySelectorAll('tbody > tr');
-        log(2, `Found ${rows.length} identifier rows. Searching for valid Steam ID...`);
-
-        for (const row of rows) {
-            const typeEl = row.querySelector('td[data-title="Type"] div.css-18s4qom');
+        for (const row of identifiersTable.querySelectorAll('tbody > tr')) {
+            const typeCell = row.querySelector('td[data-title="Type"]');
             const valueEl = row.querySelector('td[data-title="Identifier"] span');
-            if (typeEl && valueEl && typeEl.textContent.trim() === "Steam ID") {
-                const potentialID = valueEl.textContent.trim();
-                if (potentialID.startsWith("765")) {
-                    steamID = potentialID;
-                    log(2, `Valid Steam ID found for CBL: ${steamID}`);
-                    break;
-                }
+            if (typeCell?.textContent.trim() === "Steam ID") {
+                const id = valueEl?.textContent.trim();
+                if (id?.startsWith("765")) { steamID = id; break; }
             }
         }
 
@@ -511,14 +432,12 @@ const SELECTORS = {
 
         let actionsContainer = document.querySelector(SELECTORS.actionsContainer);
         if (!actionsContainer) {
-            log(2, 'Creating actions container.');
             actionsContainer = document.createElement('div');
             actionsContainer.id = SELECTORS.actionsContainer.substring(1);
             document.body.appendChild(actionsContainer);
         }
 
         if (!document.querySelector(SELECTORS.copyInfoButton)) {
-            log(2, 'Creating Copy button.');
             const btn = document.createElement('button');
             btn.id = SELECTORS.copyInfoButton.substring(1);
             btn.textContent = '📋 Copy';
@@ -528,8 +447,6 @@ const SELECTORS = {
         }
 
         if (!document.querySelector(SELECTORS.cblInfoContainer)) {
-            log(2, 'Creating CBL element...');
-
             if (steamID) {
                 const cblLink = document.createElement("a");
                 cblLink.id = SELECTORS.cblInfoContainer.substring(1);
@@ -539,120 +456,106 @@ const SELECTORS = {
                 cblLink.title = `View ${steamID} on Community Ban List`;
                 cblLink.innerHTML = '<span>Loading CBL...</span>';
                 actionsContainer.appendChild(cblLink);
-                log(2, 'Calling fetchCBLData().');
                 await fetchCBLData(steamID, cblLink);
             } else {
                 const cblDiv = document.createElement("div");
                 cblDiv.id = SELECTORS.cblInfoContainer.substring(1);
                 cblDiv.innerHTML = '<span>CBL: SteamID not found</span>';
                 actionsContainer.appendChild(cblDiv);
-                log(1, "Warning: No valid SteamID starting with '765' was found for CBL.");
             }
         }
     }
 
-    // ==================================================================================
-    // SECTION: ORGANIZATION EDIT PAGE LOGIC - Adds ||| to work within ./docs/ generator for your bm org member list.
-    // ==================================================================================
-
+    // Adds ||| separators for ./docs/ generator compatibility
     function updateOrgEditPage() {
-        if (!state.page.isOrgEditPage) {
-            log(2, 'Setting up Organization Edit Page...');
-            state.page.isOrgEditPage = true;
-        }
+        if (!state.page.isOrgEditPage) state.page.isOrgEditPage = true;
         document.querySelectorAll(SELECTORS.orgRoleList).forEach(li => {
             if (li.dataset.modified) return;
-            const firstTextNode = Array.from(li.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '');
-            if (firstTextNode) {
-                li.insertBefore(document.createTextNode(' ||| '), firstTextNode.nextSibling);
-            }
+            const textNode = Array.from(li.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+            if (textNode) li.insertBefore(document.createTextNode(' ||| '), textNode.nextSibling);
             li.dataset.modified = 'true';
         });
     }
 
-    // ==================================================================================
-    // SECTION: GLOBAL UI MODIFICATIONS - Changes ban button to filter by your org's global ban list by default.
-    // ==================================================================================
-
+    // Redirects ban button to filter by org's global ban list
     function setupBanButton() {
         const banButton = document.querySelector(SELECTORS.banButton);
+        if (!banButton || banButton.dataset.modified) return;
 
-        // Only proceed if the button exists and hasn't been modified by us yet.
-        if (banButton && !banButton.dataset.modified) {
-            log(2, 'Found original ban button. Overriding its click behavior...');
-
-            const newBanButton = banButton.cloneNode(true);
-
-            newBanButton.href = "/rcon/bans?filter%5Borganization%5D=" + bmORG_ID + "&filter%5Bexpired%5D=true";
-            newBanButton.dataset.modified = 'true';
-
-            banButton.parentNode.replaceChild(newBanButton, banButton);
-
-            log(1, 'Ban button link updated.');
-        }
+        const newBtn = banButton.cloneNode(true);
+        newBtn.href = `/rcon/bans?filter%5Borganization%5D=${BM_ORG_ID}&filter%5Bexpired%5D=true`;
+        newBtn.dataset.modified = 'true';
+        banButton.parentNode.replaceChild(newBtn, banButton);
     }
 
-    // ==================================================================================
-    // SECTION: DOM OBSERVER & Processing  - Watches for page changes and runs appropriate functions.
-    // ==================================================================================
+    function isLogView() {
+        return document.querySelector(SELECTORS.logContainer)
+            || document.querySelector('[data-testid="activity"]');
+    }
 
-    function handleDOMChange() {
-        log(3, 'DOM Change Detected, running checks...');
+    let observerScheduled = false;
+
+    function scheduleUpdate() {
+        if (observerScheduled) return;
+        observerScheduled = true;
+        window.requestAnimationFrame(() => {
+            observerScheduled = false;
+            processDOMChanges();
+        });
+    }
+
+    function processDOMChanges() {
         const onPlayerPage = document.querySelector(SELECTORS.playerPage);
         if (onPlayerPage) {
             setupPlayerPage();
-        } else {
-            if (state.page.isPlayerPage) {
-                log(1, 'Left player page, cleaning up.');
-                document.querySelector(SELECTORS.actionsContainer)?.remove();
-                state.page.isPlayerPage = false;
-            }
+        } else if (state.page.isPlayerPage) {
+            document.querySelector(SELECTORS.actionsContainer)?.remove();
+            state.page.isPlayerPage = false;
         }
-        if (document.querySelector(SELECTORS.logContainer)) {
-            updateLogView();
-        }
-        if (document.querySelector(SELECTORS.orgEditPage)) {
-            updateOrgEditPage();
-        } else {
-            state.page.isOrgEditPage = false;
-        }
+
+        if (isLogView()) updateLogView();
+        
+        if (document.querySelector(SELECTORS.orgEditPage)) updateOrgEditPage();
+        else state.page.isOrgEditPage = false;
+        
         setupBanButton();
     }
 
     async function main() {
         log(1, `🚀 BMUS v${EXTENSION_VERSION}: Initializing...`);
-        const [customConfig, adminList] = await Promise.all([fetchJSON(SOURCES.customConfig, "Custom Config"), fetchJSON(SOURCES.adminList,
-            "Admin List")]);
+        const [customConfig, adminList] = await Promise.all([
+            fetchJSONCached(DATA_SOURCES.customConfig, "Custom Config"),
+            fetchJSONCached(DATA_SOURCES.adminList, "Admin List")
+        ]);
+
         if (!customConfig) {
-            showVersionMismatchWarning(EXTENSION_VERSION, "Error", `Could not load required configuration from:\n${SOURCES.customConfig}`);
+            showVersionMismatchWarning(EXTENSION_VERSION, "Error", 
+                `Could not load configuration from:\n${DATA_SOURCES.customConfig}`);
             return;
         }
         state.config = customConfig;
+
         const remoteVersion = state.config?.chrome_extension_version;
         if (!remoteVersion) {
-            showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", `Remote version is missing from config.\nURL: ${SOURCES.customConfig}`);
+            showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", 
+                `Remote version missing from config.\nURL: ${DATA_SOURCES.customConfig}`);
         } else if (remoteVersion !== EXTENSION_VERSION) {
             showVersionMismatchWarning(EXTENSION_VERSION, remoteVersion,
-                `Your script version is mismatched or outdated. Please update.\nConfig URL: ${SOURCES.customConfig}`);
-        } else {
-            log(1, `Extension version (${EXTENSION_VERSION}) is up to date.`);
+                `Script version mismatched. Please update.\nConfig URL: ${DATA_SOURCES.customConfig}`);
         }
+
         if (adminList) {
             state.adminLists.group1 = new Set(adminList.group1);
             state.adminLists.group2 = new Set(adminList.group2);
             state.adminLists.group3 = new Set(adminList.group3);
-            log(2, 'Admin lists loaded.');
         }
+        state.cachedColorMap = buildAdminColorMap(state.config);
+
         injectGlobalCSS();
-        const observer = new MutationObserver(handleDOMChange);
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-        handleDOMChange();
-        log(1, "👀 Observer is active.");
+        new MutationObserver(scheduleUpdate).observe(document.body, { childList: true, subtree: true });
+        processDOMChanges();
+        log(1, "👀 Observer active.");
     }
 
     await main();
-
 })();
