@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-and-commit:
+    if: github.repository != 'Synarious/bm-enhanced'
     runs-on: ubuntu-latest
 
     permissions:
