@@ -28,7 +28,7 @@ jobs:
 
     - name: 🚀 Run build script
       # This single command now does all the work!
-      run: node minify.js
+      run: node build.js
 
     - name: ✨ Commit and push changes
       run: |

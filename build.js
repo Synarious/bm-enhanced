@@ -76,11 +76,37 @@ async function runLint() {
   console.log('  - ✅ ESLint passed with no warnings.');
 }
 
+async function validateJSONConfigs() {
+  console.log('\nTask 0.5: Validating JSON config files...');
+  const configFiles = [
+    path.join(__dirname, 'src', 'config', 'termList.json'),
+    path.join(__dirname, 'src', 'config', 'adminList.json'),
+  ];
+  let allValid = true;
+  for (const filePath of configFiles) {
+    try {
+      const raw = await fs.readFile(filePath, 'utf8').catch(() => null);
+      if (raw === null) {
+        console.log(`  - ⚠️ ${path.basename(filePath)} not found, skipping.`);
+        continue;
+      }
+      JSON.parse(raw);
+      console.log(`  - ✅ ${path.basename(filePath)} is valid JSON.`);
+    } catch (err) {
+      console.error(`  - ❌ ${path.basename(filePath)} is invalid JSON: ${err.message}`);
+      allValid = false;
+    }
+  }
+  if (!allValid) {
+    throw new Error('One or more JSON config files have syntax errors. Fix them before building.');
+  }
+}
+
 /**
  * Build script that reads all user-customizable data from builds/customization.json,
  * replaces placeholders in source and build templates, then minifies.
  *
- * Run using "node minify.js". Github Actions will always run this script.
+ * Run using "node build.js".
  */
 async function runBuild() {
   const paths = {
@@ -99,6 +125,7 @@ async function runBuild() {
     console.log('--------------------------------------------------');
 
     await runLint();
+    await validateJSONConfigs();
 
     // --- Read and validate customization ---
     console.log('Task 1: Reading customization.json...');

@@ -32,7 +32,7 @@ It's free and open source — please consider leaving a coffee at [ko-fi.com/syn
 - **Dual build targets** — Ships as both a Chrome Extension (Manifest V3) and a Tampermonkey userscript from a single source file. The Tampermonkey userscript also works on mobile browsers with userscript support (e.g., Brave, Kiwi).
 - **Modular configs** — Point `adminList.json` and `termList.json` to your own repo to separate permissions from script code.
 - **Admin list pipeline** — Automated scripts to fetch org members from Battlemetrics API, group by role, and resolve SteamIDs to names.
-- **Build script** — `node minify.js` runs ESLint, minifies via Terser, and generates both extension and userscript outputs in one run.
+- **Build script** — `node build.js` runs ESLint, minifies via Terser, and generates both extension and userscript outputs in one run.
 - **Tested** — Confirmed working in Squad and Arma Reforger communities; likely compatible with other Battlemetrics-supported games.
 
 ## Getting Started
@@ -59,12 +59,12 @@ It's free and open source — please consider leaving a coffee at [ko-fi.com/syn
 1. **`builds/customization.json`** — The single source of truth for all build-time configuration. Set your version, org ID, remote data source URLs, Tampermonkey metadata (name, author, update/download URLs), and Chrome Extension name/description.
 2. **`src/config/termList.json`** — Set your server names, keywords, colors, and admin name prefixes.
 3. **`src/config/adminList.json`** — Define admin groups (group1, group2, group3) with player names. You can fill this in by hand, or use the optional automated pipeline below.
-4. Run `node minify.js` to rebuild both the extension and userscript outputs. The build script reads `customization.json` and resolves all placeholders in source and template files.
+4. Run `node build.js` to rebuild both the extension and userscript outputs. The build script reads `customization.json` and resolves all placeholders in source and template files.
 5. Host the resulting `builds/tampermonkey_userscript/bm-enhanced.min.js` on your server or GitHub repo at the URL specified in `customization.json`. This enables automatic updates for your users.
 
 ### Automating the Admin List (Optional)
 
-> This entire pipeline and `.env` setup is **optional**. If you prefer, just edit `src/config/adminList.json` by hand — paste player names into the three groups and skip straight to `node minify.js`. The pipeline exists for orgs that want to keep the list in sync automatically.
+> This entire pipeline and `.env` setup is **optional**. If you prefer, just edit `src/config/adminList.json` by hand — paste player names into the three groups and skip straight to `node build.js`. The pipeline exists for orgs that want to keep the list in sync automatically.
 
 The admin list pipeline automates building `src/config/adminList.json` from your Battlemetrics org. It runs in 3 stages from `admin_list/`:
 
@@ -151,16 +151,16 @@ Four files carry version numbers. Here's what each controls:
 | `builds/customization.json:2` — `"version"` | `"4.1"` | **Single source of truth.** The build script reads this value and injects it into source, manifest, and Tampermonkey output. Bump this on every release. | Manual |
 | `src/config/termList.json:2` — `"version"` | `"3.01"` | Should match the version in `customization.json`. Purely informational. | Manual |
 | `src/config/termList.json:3` — `"chrome_extension_version"` | `"3.01"` | **Runtime version check.** Every time the script loads, it fetches this JSON remotely and compares against the version baked into the script. If they differ, a full-screen warning overlay tells users to update. Must match the `version` in `customization.json` or the check fires. | Manual |
-| `builds/chrome_extension/manifest.json` — `"version"` | (auto-filled) | Chrome's extension manifest. **Auto-updated** by the build script from `customization.json`. The version is parsed as a number (e.g. `"4.1"` → `4.1`) and written here. | Automated by `minify.js` |
-| `builds/tampermonkey_userscript/template.user.js` — `@version` | (auto-filled) | The build script reads the version from `customization.json` and writes the `@version` line in the output automatically. Never edit this manually. | Automated by `minify.js` |
+| `builds/chrome_extension/manifest.json` — `"version"` | (auto-filled) | Chrome's extension manifest. **Auto-updated** by the build script from `customization.json`. The version is parsed as a number (e.g. `"4.1"` → `4.1`) and written here. | Automated by `build.js` |
+| `builds/tampermonkey_userscript/template.user.js` — `@version` | (auto-filled) | The build script reads the version from `customization.json` and writes the `@version` line in the output automatically. Never edit this manually. | Automated by `build.js` |
 | `package.json:3` — `"version"` | `"3.0"` | npm package metadata only. Not consumed by any build or runtime logic. | Manual |
 
 **Update dependencies:** `npm run update` checks the npm registry for each dependency. Any package whose latest version was published within the last **7 days** is skipped — a supply chain security buffer to avoid pulling in freshly published releases that haven't had community vetting time. The buffer is defined in `scripts/update-deps.js:6`.
 
-**When releasing:** bump `version` in `builds/customization.json`, update both `version` and `chrome_extension_version` in `src/config/termList.json` to match, then run `node minify.js` to regenerate all build outputs (including manifest.json and Tampermonkey `@version`).
+**When releasing:** bump `version` in `builds/customization.json`, update both `version` and `chrome_extension_version` in `src/config/termList.json` to match, then run `node build.js` to regenerate all build outputs (including manifest.json and Tampermonkey `@version`).
 
 ### Development Notes
-- Only files you should modify are [ builds/customization.json | config/adminList.json | config/termList.json ]. `source.js` and `template.user.js` use placeholders resolved from `customization.json` by `minify.js`. You can run minify.js locally before pushing, or rely on the Github Action to run it.
+- Only files you should modify are [ builds/customization.json | config/adminList.json | config/termList.json ]. `source.js` and `template.user.js` use placeholders resolved from `customization.json` by `build.js`. You can run build.js locally before pushing, or rely on the Github Action to run it.
 - [LiQ Gaming](https://liqgaming.com/#/) - Avengerian (time seconds), Got2bHockey (Github Actions & Fixes)
 - /GmG\ - Eddie (button fixes and CBL bits)
 - This project's scope is limited to reading/modifying the **locally** delivered web content and locally injecting CSS and web improvements without touching the BM API (as such this code could run offline). Code suggestions that automates or performs interactive API requests like bans, kicks and queries using your Battlemetrics tokens will not be merged into this project as that approaches being a self-bot which could result in your BM account being suspended. Add such code at your own risk.

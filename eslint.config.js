@@ -27,7 +27,7 @@ module.exports = [
     },
   },
   {
-    files: ['minify.js'],
+    files: ['build.js'],
     languageOptions: {
       ecmaVersion: 2021,
       sourceType: 'commonjs',
