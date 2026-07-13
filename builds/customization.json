@@ -1,24 +1,24 @@
 {
   "version": "4.0",
-  "orgId": 58064,
+  "orgId": 123456,
   "dataSources": {
-    "adminList": "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/unnamed/src/config/adminList.json",
-    "customConfig": "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/unnamed/src/config/termList.json"
+    "adminList": "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/main/src/config/adminList.json",
+    "customConfig": "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/main/src/config/termList.json"
   },
   "tampermonkey": {
     "name": "Battlemetrics Toolkit - Desktop",
     "namespace": "https://www.battlemetrics.com/",
     "description": "Modifies the rcon panel for battlemetrics to help color code important events and details about players.",
     "author": "Synarion (aka Synarious @ syfusion.com/github)",
-    "updateURL": "https://raw.githubusercontent.com/Synarious/bm-enhanced/tree/unnamed/builds/tampermonkey_userscript/bm-enhanced.min.js",
-    "downloadURL": "https://raw.githubusercontent.com/Synarious/bm-enhanced/tree/unnamed/builds/tampermonkey_userscript/bm-enhanced.min.js"
+    "updateURL": "https://github.com/Synarious/bm-enhanced/blob/main/builds/tampermonkey_userscript/bm-enhanced.min.js",
+    "downloadURL": "https://github.com/Synarious/bm-enhanced/blob/main/builds/tampermonkey_userscript/bm-enhanced.min.js"
   },
   "adminList": {
     "roles": {
-      "moderator1": "37219",
-      "admin1": "37220",
-      "admin2": "",
-      "super_admin": "24942"
+      "moderator1": "CHANGE_ME_OR_EMPTY",
+      "admin1": "CHANGE_ME_OR_EMPTY",
+      "admin2": "CHANGE_ME_OR_EMPTY",
+      "super_admin": "CHANGE_ME_OR_EMPTY"
     }
   },
   "chromeExtension": {
