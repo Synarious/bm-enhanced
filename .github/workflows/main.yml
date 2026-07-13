@@ -1,48 +1,43 @@
-name: Minify and Update
+name: Build and Deploy
 
 on:
   push:
     branches:
-      - '*'  # Triggers on push to any branch
-  pull_request:
-    branches:
-      - '*'  # Triggers on pull requests for any branch
+      - '*' # Triggers on push to any branch
 
 jobs:
-  minify-and-update:
+  build-and-commit:
+    if: github.repository != 'Synarious/bm-enhanced'
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Install Node.js
+    - name: ⚙️ Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '14'  # Adjust the Node.js version as needed
+        node-version: '20'
+        cache: 'npm'
 
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: npm install
 
-    - name: Minify JS
-      run: npx uglify-js code.js -o code.min.js
+    - name: 🚀 Run build script
+      # This single command now does all the work!
+      run: node build.js
 
-    - name: Replace Line 17 in bm-toolkit-desktop.min.js with contents of code.min.js
+    - name: ✨ Commit and push changes
       run: |
-        tmp_file=$(mktemp)
-        cp code.min.js "$tmp_file"
-        sed -i '17s~.*~'"$(sed 's/[\/&]/\\&/g' "$tmp_file")"'~' bm-toolkit-desktop.min.js
-        rm "$tmp_file"
-    
-    - name: Update @version in bm-toolkit-desktop.min.js to CONST version
-      run: |
-        version=$(grep -oP 'const version = "\K[^"]+' code.js)
-        sed -i "4s|// @version [0-9]*\(\.[0-9]*\)\?|// @version $version|" bm-toolkit-desktop.min.js
-      
-    - name: Commit and push changes
-      run: |
-        git config --global user.email "actions@github.com"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "GitHub Actions"
-        git add code.min.js bm-toolkit-desktop.min.js
-        git commit -m "Minify JS and Update Versions" || echo "No changes to commit"
-        git push
+        git add builds/source.min.js builds/source-custom.js builds/tampermonkey_userscript/bm-enhanced.min.js builds/chrome_extension/content.js builds/chrome_extension/manifest.json
+        if ! git diff --staged --quiet; then
+          git commit -m "build: Minify JS and update versions [skip ci]"
+          git push
+        else
+          echo "No changes to commit."
+        fi

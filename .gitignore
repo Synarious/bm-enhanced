@@ -1,3 +1,14 @@
 .idea
 .idea/*
 .idea/libraries/*
+node_modules
+.env
+builds/source-custom.js
+admin_list/helpers/admin-data.json
+admin_list/helpers/admin-data-error.txt
+admin_list/helpers/admin-parse-debug.txt
+admin_list/helpers/steam-name-cache.json
+admin_list/helpers/processed_adminList.json
+scratch.html
+chrome_extension/content.js
+tampermonkey_userscript/bm-enhanced.min.js
