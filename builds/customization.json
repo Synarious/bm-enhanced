@@ -1,5 +1,5 @@
 {
-  "version": "4.1",
+  "version": "4.0",
   "orgId": 58064,
   "dataSources": {
     "adminList": "https://raw.githubusercontent.com/Synarious/bm-enhanced/refs/heads/unnamed/src/config/adminList.json",

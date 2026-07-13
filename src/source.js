@@ -4,6 +4,10 @@ const BM_ORG_ID = "__ORG_ID__";
 
 const DATA_SOURCES = "__DATA_SOURCES__";
 
+function versionsEqual(a, b) {
+    return parseFloat(a) === parseFloat(b);
+}
+
 const SELECTORS = {
     logContainer: '.ReactVirtualized__Grid__innerScrollContainer',
     logMessages: '[data-testid="activity-item"]',
@@ -539,7 +543,7 @@ const SELECTORS = {
         if (!remoteVersion) {
             showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", 
                 `Remote version missing from config.\nURL: ${DATA_SOURCES.customConfig}`);
-        } else if (remoteVersion !== EXTENSION_VERSION) {
+        } else if (!versionsEqual(remoteVersion, EXTENSION_VERSION)) {
             showVersionMismatchWarning(EXTENSION_VERSION, remoteVersion,
                 `Script version mismatched. Please update.\nConfig URL: ${DATA_SOURCES.customConfig}`);
         }
