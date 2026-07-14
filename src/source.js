@@ -5,7 +5,13 @@ const BM_ORG_ID = "__ORG_ID__";
 const DATA_SOURCES = "__DATA_SOURCES__";
 
 function versionsEqual(a, b) {
-    return parseFloat(a) === parseFloat(b);
+    const pa = String(a).split('.').map(Number);
+    const pb = String(b).split('.').map(Number);
+    const len = Math.max(pa.length, pb.length);
+    for (let i = 0; i < len; i++) {
+        if ((pa[i] || 0) !== (pb[i] || 0)) return false;
+    }
+    return true;
 }
 
 const SELECTORS = {
@@ -13,10 +19,9 @@ const SELECTORS = {
     logMessages: '[data-testid="activity-item"]',
     logPlayerNames: 'a[href^="/rcon/players/"]',
     logActivityNames: 'a[href^="/rcon/players/"]',
-    logNoteFlags: 'i, svg, span.glyphicon',
+    logNoteFlags: '.css-1e64wdl',
     logServerNames: '[data-testid="activity-item"] span, [data-testid="activity-item"] a',
     logTimestamps: 'time[datetime], [datetime]',
-    logTimestampsLong: 'time[datetime], [datetime]',
     playerPage: "#RCONPlayerPage",
     playerPageTitle: "#RCONPlayerPage h2",
     playerInfoTable: '#RCONPlayerPage table',
@@ -46,7 +51,8 @@ const SELECTORS = {
             isLogView: false,
             isOrgEditPage: false
         },
-        cachedColorMap: new Map()
+        cachedColorMap: new Map(),
+        stylingRules: []
     };
 
     function log(level, ...args) {
@@ -95,6 +101,24 @@ const SELECTORS = {
             }
         }
         return data;
+    }
+
+    function evictStaleCache() {
+        const now = Date.now();
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key?.startsWith(CACHE_PREFIX)) continue;
+            try {
+                const entry = JSON.parse(localStorage.getItem(key));
+                if (now - entry.timestamp >= CACHE_TTL_MS) {
+                    localStorage.removeItem(key);
+                    i--;
+                }
+            } catch {
+                localStorage.removeItem(key);
+                i--;
+            }
+        }
     }
 
     function injectGlobalCSS() {
@@ -146,6 +170,13 @@ const SELECTORS = {
             }
             .css-1xkypod {
                 position: unset !important;
+            }
+            [data-testid="rcon-dashboard-server"] .css-1mrykm {
+                overflow: hidden;
+            }
+            [data-testid="rcon-dashboard-server"] .server-handle {
+                cursor: move;
+                z-index: 10;
             }
             .css-mxzvlz {
                 padding-left: 0.5em;
@@ -205,20 +236,21 @@ const SELECTORS = {
         document.getElementById("closeWarningBtn").addEventListener("click", () => warningBox.remove());
     }
 
+    const timestampFormatter = new Intl.DateTimeFormat(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', second: '2-digit',
+        timeZoneName: 'short', hour12: true
+    });
+
     function applyTimeStamps() {
-        const elements = document.querySelectorAll(`${SELECTORS.logTimestamps}, ${SELECTORS.logTimestampsLong}`);
-        const formatOptions = {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-            hour: 'numeric', minute: '2-digit', second: '2-digit',
-            timeZoneName: 'short', hour12: true
-        };
+        const elements = document.querySelectorAll(SELECTORS.logTimestamps);
         elements.forEach(el => {
             if (el.dataset.timestampApplied) return;
             const utcTime = el.getAttribute("datetime");
             if (!utcTime) return;
             const date = new Date(utcTime);
             if (isNaN(date.getTime())) return;
-            el.title = date.toLocaleString(undefined, formatOptions);
+            el.title = timestampFormatter.format(date);
             el.dataset.timestampApplied = 'true';
         });
     }
@@ -227,6 +259,9 @@ const SELECTORS = {
         const items = document.querySelectorAll(SELECTORS.logMessages);
         if (items.length) return items;
 
+        const logContainer = document.querySelector(SELECTORS.logContainer);
+        if (!logContainer) return [];
+
         const logPatterns = [
             'was kicked', 'was warned', 'was banned',
             'joined the server', 'left the server', 'team killed',
@@ -234,15 +269,16 @@ const SELECTORS = {
             'restarted the match', 'Trigger added flag'
         ];
 
-        return [...document.querySelectorAll('li, tr, article, [class]')]
+        return [...logContainer.querySelectorAll('li, tr, article')]
             .filter(el => {
                 const text = el.textContent?.trim() || '';
                 return logPatterns.some(p => text.includes(p)) && text.length < 800;
             });
     }
 
-    function styleLogMessages(logMessages, { sets, colors }) {
-        const stylingRules = [
+    function buildStylingRules(config) {
+        const { sets, colors } = config;
+        return [
             { regex: /(?:\s|:|"|^)!admin/i, backgroundColor: '#9a000040', color: 'lime' },
             { phrases: sets.grayedOut, color: colors.cGrayed },
             { phrases: sets.teamKilled, color: colors.cTeamKilled, backgroundColor: '#292135' },
@@ -255,7 +291,9 @@ const SELECTORS = {
             { phrases: sets.coloredGroup3, color: colors.cColoredGroup3 },
             { phrases: sets.trackedTriggers, color: colors.cTracked }
         ];
+    }
 
+    function styleLogMessages(logMessages, stylingRules) {
         logMessages.forEach(element => {
             if (element.dataset.styled) return;
 
@@ -324,7 +362,7 @@ const SELECTORS = {
         const serverNameElements = document.querySelectorAll(SELECTORS.logServerNames);
         const noteFlagElements = document.querySelectorAll(SELECTORS.logNoteFlags);
 
-        styleLogMessages(logMessages, state.config);
+        styleLogMessages(logMessages, state.stylingRules);
         styleAdminNames(adminNameElements);
 
         const { serverName1, serverName2, colors } = state.config;
@@ -343,9 +381,13 @@ const SELECTORS = {
                 el.getAttribute("aria-label") ||
                 el.closest("[title]")?.getAttribute("title") ||
                 el.closest("[aria-label]")?.getAttribute("aria-label") ||
+                el.parentElement?.getAttribute("title") ||
+                el.parentElement?.getAttribute("aria-label") ||
                 ""
             ).toLowerCase();
-            if ((label.includes("note") || label.includes("flag")) && el.textContent.trim().length < 3) {
+            const parent = el.parentElement;
+            const siblingText = parent?.parentElement?.textContent?.toLowerCase() || "";
+            if ((label.includes("note") || label.includes("flag") || siblingText.includes("note") || siblingText.includes("flag")) && el.textContent.trim().length < 3) {
                 el.style.color = colors.cNoteColorIcon;
             }
         });
@@ -498,12 +540,26 @@ const SELECTORS = {
     }
 
     let observerScheduled = false;
+    let lastUpdateTime = 0;
+    const THROTTLE_MS = 100;
 
     function scheduleUpdate() {
         if (observerScheduled) return;
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastUpdateTime;
+        if (timeSinceLastUpdate < THROTTLE_MS) {
+            observerScheduled = true;
+            window.setTimeout(() => {
+                observerScheduled = false;
+                lastUpdateTime = Date.now();
+                processDOMChanges();
+            }, THROTTLE_MS - timeSinceLastUpdate);
+            return;
+        }
         observerScheduled = true;
         window.requestAnimationFrame(() => {
             observerScheduled = false;
+            lastUpdateTime = Date.now();
             processDOMChanges();
         });
     }
@@ -511,7 +567,7 @@ const SELECTORS = {
     function processDOMChanges() {
         const onPlayerPage = document.querySelector(SELECTORS.playerPage);
         if (onPlayerPage) {
-            setupPlayerPage();
+            setupPlayerPage().catch(err => console.error('BMUS: setupPlayerPage error', err));
         } else if (state.page.isPlayerPage) {
             document.querySelector(SELECTORS.actionsContainer)?.remove();
             state.page.isPlayerPage = false;
@@ -527,6 +583,7 @@ const SELECTORS = {
 
     async function main() {
         log(1, `🚀 BMUS v${EXTENSION_VERSION}: Initializing...`);
+        evictStaleCache();
         const [customConfig, adminList] = await Promise.all([
             fetchJSONCached(DATA_SOURCES.customConfig, "Custom Config"),
             fetchJSONCached(DATA_SOURCES.adminList, "Admin List")
@@ -554,6 +611,7 @@ const SELECTORS = {
             state.adminLists.group3 = new Set(adminList.group3);
         }
         state.cachedColorMap = buildAdminColorMap(state.config);
+        state.stylingRules = buildStylingRules(state.config);
 
         injectGlobalCSS();
         new MutationObserver(scheduleUpdate).observe(document.body, { childList: true, subtree: true });
