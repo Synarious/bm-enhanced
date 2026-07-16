@@ -17,7 +17,7 @@ function versionsEqual(a, b) {
 const SELECTORS = {
     logContainer: '.ReactVirtualized__Grid__innerScrollContainer',
     logMessages: '.css-12yx96v',
-    logPlayerNames: '.css-16howbp',
+    logPlayerNames: '.name a',
     logActivityNames: '.css-16howbp',
     logNoteFlags: '.css-1e64wdl',
     logServerNames: '.css-9svwgn span, .css-9svwgn a',
@@ -160,6 +160,9 @@ const SELECTORS = {
                 margin-left: 4em;
                 margin-right: 4em;
             }
+            .css-1e64wdl {
+                color: rgb(255 255 255) !important;
+            }
             @media (max-width: 768px) {
                 .main {
                 width: inherit !important;
@@ -170,12 +173,12 @@ const SELECTORS = {
             .css-1xkypod {
                 position: unset !important;
             }
-            .css-1mrykm {
-                overflow: hidden !important;
+            [data-testid="rcon-dashboard-server"] .css-1mrykm {
+                overflow: hidden;
             }
-            .server-handle {
-                cursor: move !important;
-                z-index: 10 !important;
+            [data-testid="rcon-dashboard-server"] .server-handle {
+                cursor: move;
+                z-index: 10;
             }
             .css-mxzvlz {
                 padding-left: 0.5em;
@@ -350,7 +353,15 @@ const SELECTORS = {
         });
 
         noteFlagElements.forEach(el => {
-            if (!el.style.color) {
+            if (el.style.color) return;
+            const label = (
+                el.getAttribute("title") ||
+                el.getAttribute("aria-label") ||
+                el.closest("[title]")?.getAttribute("title") ||
+                el.closest("[aria-label]")?.getAttribute("aria-label") ||
+                ""
+            ).toLowerCase();
+            if ((label.includes("note") || label.includes("flag")) && el.textContent.trim().length < 3) {
                 el.style.color = colors.cNoteColorIcon;
             }
         });
@@ -521,21 +532,6 @@ const SELECTORS = {
         }
 
         if (isLogView()) updateLogView();
-
-        document.querySelectorAll('.css-1mrykm').forEach(el => {
-            if (!el.dataset.overflowFixed) {
-                el.style.overflow = 'hidden';
-                el.dataset.overflowFixed = 'true';
-            }
-        });
-
-        document.querySelectorAll('.server-handle').forEach(el => {
-            if (!el.dataset.handleFixed) {
-                el.style.cursor = 'move';
-                el.style.zIndex = '10';
-                el.dataset.handleFixed = 'true';
-            }
-        });
         
         if (document.querySelector(SELECTORS.orgEditPage)) updateOrgEditPage();
         else state.page.isOrgEditPage = false;
