@@ -10,9 +10,9 @@ function loadRoles() {
             throw new Error('Missing adminList.roles in customization.json');
         }
         return {
-            admin1: roles.admin1 || null,
-            admin2: roles.admin2 || null,
-            moderator1: roles.moderator1 || null,
+            adminLevel: roles.adminLevel || null,
+            adminGame1: roles.adminGame1 || null,
+            adminGame2: roles.adminGame2 || null,
             super_admin: roles.super_admin || null,
         };
     } catch (err) {
@@ -65,28 +65,33 @@ function parseAdminData(adminData) {
         if (blacklist.includes(nickname)) return;
 
         const steamIDObj = identifiers.find(id => id.type === 'steamID');
-        const steamID = steamIDObj ? steamIDObj.identifier : null;
+        let steamID = steamIDObj ? steamIDObj.identifier : null;
+        let isFallbackName = false;
 
-        if (!steamID) return;
+        if (!steamID) {
+            // Fallback: no SteamID linked in Battlemetrics — use BM nickname so the user still lands in a group
+            steamID = nickname;
+            isFallbackName = true;
+        }
 
-        const isModerator1 = ROLES.moderator1 ? userRoles.includes(ROLES.moderator1) : false;
-        const isAdmin1 = ROLES.admin1 ? userRoles.includes(ROLES.admin1) : false;
-        const isAdmin2 = ROLES.admin2 ? userRoles.includes(ROLES.admin2) : false;
+        const isAdminLevel = ROLES.adminLevel ? userRoles.includes(ROLES.adminLevel) : false;
+        const isAdminGame1 = ROLES.adminGame1 ? userRoles.includes(ROLES.adminGame1) : false;
+        const isAdminGame2 = ROLES.adminGame2 ? userRoles.includes(ROLES.adminGame2) : false;
         const isSuperAdmin = ROLES.super_admin ? userRoles.includes(ROLES.super_admin) : false;
 
         const roleInfo = {
-            nickname, steamID,
-            roles: { moderator1: isModerator1, admin1: isAdmin1, admin2: isAdmin2, super_admin: isSuperAdmin },
+            nickname, steamID, isFallbackName,
+            roles: { adminLevel: isAdminLevel, adminGame1: isAdminGame1, adminGame2: isAdminGame2, super_admin: isSuperAdmin },
             allRoleIds: userRoles
         };
 
-        if (isSuperAdmin || (isAdmin2 && isAdmin1) || (isAdmin2 && isModerator1)) {
+        if (isSuperAdmin || (isAdminGame2 && isAdminGame1)) {
             groups.group3.push(steamID);
             debugInfo.group3.push(roleInfo);
-        } else if (isAdmin2) {
+        } else if (isAdminGame2) {
             groups.group2.push(steamID);
             debugInfo.group2.push(roleInfo);
-        } else if (isAdmin1 || isModerator1) {
+        } else if (isAdminGame1 || isAdminLevel) {
             groups.group1.push(steamID);
             debugInfo.group1.push(roleInfo);
         } else {
@@ -100,9 +105,9 @@ function parseAdminData(adminData) {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, JSON.stringify(groups, null, 2), 'utf8');
     console.log(`✓ Created adminList.json at ${outputPath}`);
-    console.log(`  - Group 1: ${groups.group1.length} users (Admin1 OR Moderator1)`);
-    console.log(`  - Group 2: ${groups.group2.length} users (Admin2)`);
-    console.log(`  - Group 3: ${groups.group3.length} users (Admin2 + (Admin1 or Moderator1) OR Super Admin)`);
+    console.log(`  - Group 1: ${groups.group1.length} users (AdminGame1 OR AdminLevel)`);
+    console.log(`  - Group 2: ${groups.group2.length} users (AdminGame2, no AdminGame1)`);
+    console.log(`  - Group 3: ${groups.group3.length} users (AdminGame2 + AdminGame1 OR Super Admin)`);
 
     if (unmapped.length > 0) {
         console.log(`\n⚠️  ${unmapped.length} users with SteamID were NOT mapped to any group:`);
@@ -122,12 +127,12 @@ function parseAdminData(adminData) {
 
     [1, 2, 3].forEach(groupNum => {
         const info = debugInfo[`group${groupNum}`];
-        const titles = { 1: 'Admin1 OR Moderator1', 2: 'Admin2', 3: 'Admin2 + (Admin1 or Moderator1) OR Super Admin' };
+        const titles = { 1: 'AdminGame1 OR AdminLevel', 2: 'AdminGame2 (no AdminGame1)', 3: 'AdminGame2 + AdminGame1 OR Super Admin' };
         debugText += `GROUP ${groupNum} (${info.length} users) - ${titles[groupNum]}:\n`;
         debugText += '='.repeat(80) + '\n';
         info.forEach(user => {
             debugText += `${user.nickname}\n`;
-            debugText += `  SteamID: ${user.steamID}\n`;
+            debugText += `  SteamID: ${user.steamID}${user.isFallbackName ? ' (nickname fallback — no SteamID linked)' : ''}\n`;
             debugText += `  Role IDs: [${user.allRoleIds.join(', ')}]\n\n`;
         });
         debugText += '\n';
@@ -152,7 +157,7 @@ function parseAdminData(adminData) {
 
     debugText += '='.repeat(80) + '\nSUMMARY:\n';
     debugText += `  Total users processed: ${organizationUsers.length}\n`;
-    debugText += `  Users with Steam ID: ${groups.group1.length + groups.group2.length + groups.group3.length}\n`;
+    debugText += `  Users mapped (SteamID or nickname fallback): ${groups.group1.length + groups.group2.length + groups.group3.length}\n`;
     debugText += `  Group 1: ${groups.group1.length}\n  Group 2: ${groups.group2.length}\n  Group 3: ${groups.group3.length}\n`;
 
     fs.writeFileSync(debugPath, debugText, 'utf8');

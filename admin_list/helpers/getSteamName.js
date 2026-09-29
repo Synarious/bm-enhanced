@@ -111,6 +111,14 @@ async function resolveSteamNames(adminList) {
     for (let i = 0; i < uncachedIds.length; i++) {
         const steamId = uncachedIds[i];
         const progress = `[${i + 1}/${uncachedIds.length}]`;
+
+        // Nickname fallback entries (no SteamID linked) — use as-is, no Steam API lookup
+        if (!/^\d+$/.test(steamId)) {
+            console.log(`\n${progress} Skipping Steam API (nickname fallback): ${steamId}`);
+            cache[steamId] = steamId;
+            continue;
+        }
+
         console.log(`\n${progress} Processing Steam ID: ${steamId}`);
 
         try {

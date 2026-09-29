@@ -15,9 +15,9 @@
   },
   "adminList": {
     "roles": {
-      "moderator1": "CHANGE_ME_OR_EMPTY",
-      "admin1": "CHANGE_ME_OR_EMPTY",
-      "admin2": "CHANGE_ME_OR_EMPTY",
+      "adminLevel": "CHANGE_ME_OR_EMPTY",
+      "adminGame1": "CHANGE_ME_OR_EMPTY",
+      "adminGame2": "CHANGE_ME_OR_EMPTY",
       "super_admin": "CHANGE_ME_OR_EMPTY"
     }
   },

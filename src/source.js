@@ -336,6 +336,16 @@ const SELECTORS = {
     }
 
     function styleSquadLeaders() {
+        document.querySelectorAll('.commands button').forEach(btn => {
+            btn.style.background = '';
+            btn.style.color = '';
+        });
+        document.querySelectorAll(SELECTORS.logPlayerNames).forEach(el => {
+            if (!el.dataset.colored) {
+                el.style.color = '';
+            }
+        });
+
         const playerNames = document.querySelectorAll(SELECTORS.logPlayerNames);
         playerNames.forEach(el => {
             const nameContainer = el.closest('.name');
@@ -346,7 +356,7 @@ const SELECTORS = {
                 if (row) {
                     const btn = row.querySelector('.commands button');
                     if (btn) {
-                        btn.style.background = 'rgb(237, 200, 0)';
+                        btn.style.background = '#b98904';
                         btn.style.color = '#020202';
                     }
                 }
