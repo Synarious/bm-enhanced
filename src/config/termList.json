@@ -1,13 +1,43 @@
 {
-  "version": "4",
-  "chrome_extension_version": "4",
+  "version": "4.1",
+  "chrome_extension_version": "4.1",
   "updateRate": "65",
-  "bmORG_ID": "123",
+  "bmORG_ID": "58064",
   "serverName1": "#1",
   "serverName2": "#2",
   "namePrefixes": [
     "Uɴɴ.",
-    "Uɴɴ.x"
+    "Uɴɴ.x",
+    "Uɴɴ.xᴏ.",
+    "Uɴɴ.⚒.",
+    "Uɴɴ.♖.",
+    "Uɴɴ.ʀᴏ.",
+    "Uɴɴ.ᴀ.",
+    "Uɴɴ.ꜱᴀ.",
+    "Uɴɴ.™",
+    "Uɴɴ.ᴀ✘.",
+    "Uɴɴ.✘",
+    "ΞP⋅",
+    "Uɴɴ.ΞP.",
+    "Unn.",
+    "Unn.x",
+    "Unn.xᴏ.",
+    "Unn.⚒.",
+    "Unn.♖.",
+    "Unn.ʀᴏ.",
+    "Unn.ᴀ.",
+    "Unn.ꜱᴀ.",
+    "Unn.™",
+    "Unn.ᴀ✘.",
+    "Unn.✘",
+    "Unn.ΞP.",
+    "RaT | ",
+    "RaT |",
+    "RaT|",
+    "RAT | ",
+    "RAT |",
+    "((DS))",
+    "((DS)) "
   ],
   "sets": {
     "teamKilled": [
@@ -16,7 +46,27 @@
     "grayedOut": [
       "You were teamkilled!",
       "Please revive the player if you can.) by Trigger.",
-      "You MUST apologize for your teamkills in all chat!"
+      "You MUST apologize for your teamkills in all chat!",
+      "(Welcome to the Unnamed!",
+      "Support us on our Tebex",
+      "Welcome back to the Unnamed",
+      "(Welcome to the Unnamed!",
+      "Support us on our Tebex",
+      "console key (",
+      "Shout out to our Only Fans",
+      "warned (theunnamedcorp.com)",
+      "| Please grab a squad leader",
+      "make fun of your friends! theunnamedcorp",
+      "Join a squad, you are are unassigned",
+      "Seeding Reward",
+      "Acknowledged - Provide Evidence to Discord",
+      "Trigger removed flag",
+      "Kicked player",
+      "(Vibez was the",
+      "Be sure to leave a tip for that peep",
+      "(You have entered this",
+      "Server Population: ",
+      "Ban Log: "
     ],
     "trackedTriggers": [
       "[SL Kit]"
@@ -76,8 +126,8 @@
       "(Global)",
       "executed Player Action ⚠️",
       "Teleported to",
-      "You have made admin squads"
-    ]
+      "(Squad Name: Admin"
+      ]
   },
   "colors": {
     "cStaffGroup1": "#00fdff",

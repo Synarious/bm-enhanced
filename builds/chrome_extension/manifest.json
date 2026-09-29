@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Battlemetrics Enhanced",
   "description": "Modifies the RCON panel for Battlemetrics with enhancements and color coding.",
-  "version": "4",
+  "version": "4.1",
   "icons": {
     "128": "icons/icon.png"
   },
