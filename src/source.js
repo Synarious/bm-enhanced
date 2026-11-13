@@ -1,8 +1,16 @@
-// Must match termList.json version
-const EXTENSION_VERSION = "__VERSION__"; // Don't do any 0's as the minify will drop it.
+const EXTENSION_VERSION = "__VERSION__";
 const BM_ORG_ID = "__ORG_ID__";
 
 const DATA_SOURCES = "__DATA_SOURCES__";
+const DEFAULT_TERMS = "__DEFAULT_TERMS__";
+const DEFAULT_ADMINS = "__DEFAULT_ADMINS__";
+const ADMIN_GROUPS = ['group1', 'group2', 'group3'];
+const REQUEST_TIMEOUT_MS = 10000;
+const STYLE_ID = 'bmus-global-styles';
+const CBL_ENDPOINT = 'https://communitybanlist.com/graphql';
+const BAN_PATH = '/rcon/bans';
+const BAN_LINK = 'a[href^="/rcon/bans"]';
+const BAN_TARGET = `${BAN_PATH}?filter%5Borganization%5D=${BM_ORG_ID}&filter%5Bexpired%5D=true`;
 
 function versionsEqual(a, b) {
     const pa = String(a).split('.').map(Number);
@@ -15,51 +23,71 @@ function versionsEqual(a, b) {
 }
 
 const SELECTORS = {
-    logContainer: '.ReactVirtualized__Grid__innerScrollContainer',
-    logMessages: '.css-12yx96v',
-    logPlayerNames: '.name a',
-    logActivityNames: '.css-16howbp',
-    logNoteFlags: '.css-1e64wdl',
-    logServerNames: '.css-9svwgn span, .css-9svwgn a',
+    logContainer: '.ReactVirtualized__Grid__innerScrollContainer, [data-testid="activity"]:not(:has(.ReactVirtualized__Grid__innerScrollContainer))',
+    logMessages: '.css-12yx96v, :scope > span[role="button"]:has(> time[datetime]) + div',
+    logPlayerNames: '.name > a, .name a[href^="/rcon/players/"]',
+    logActivityNames: 'a[href^="/rcon/players/"], .css-16howbp',
+    logNoteFlags: '.glyphicon-comment, .css-1e64wdl',
+    serverNameDisplays: '.server-name a, td.byOn span[title], #RCONServerLayout h1, .server-link a[href^="/rcon/servers/"]',
     logTimestamps: 'time[datetime]',
     playerPage: "#RCONPlayerPage",
-    playerPageTitle: "#RCONPlayerPage h2",
-    playerInfoTable: '#RCONPlayerPage table',
+    playerInfoTable: 'table:has(td[data-title="Identifier"])',
+    identifierRows: 'tbody > tr',
+    identifierType: 'td[data-title="Type"]',
+    identifierValue: 'td[data-title="Identifier"] span',
+    identifierLastSeen: 'td[data-title="Last Seen"] time',
+    squadDetails: '.player-detail:not(.hidden)',
+    squadCommand: '.commands:not(.th) button[aria-label="Commands"], .commands:not(.th) > button, .commands:not(.th) > div > button:first-child',
     orgEditPage: '#RCONOrgEditPage',
-    orgRoleList: '#RCONOrgEditPage ul.list-unstyled > li',
-    banButton: 'a[href="/rcon/bans"]',
-    cornerButtonContainer: "#corner-button-container",
+    orgRoleList: 'ul.list-unstyled > li',
+    rconNav: '#RCONLayout nav',
     actionsContainer: "#bmus-actions-container",
     copyInfoButton: "#copy-player-info-btn",
     cblInfoContainer: "#CBL-info-container",
 };
 
-(async () => {
+(() => {
     const DEBUG_LEVEL = 1; // 0=Off, 1=Basic, 2=Detailed, 3=Verbose
     const CACHE_TTL_MS = 300000; // 5 minutes
     const CACHE_PREFIX = 'bmus_cache_';
 
     const state = {
         config: null,
-        adminLists: {
-            group1: new Set(),
-            group2: new Set(),
-            group3: new Set()
-        },
-        page: {
-            isPlayerPage: false,
-            isLogView: false,
-            isOrgEditPage: false
-        },
-        cachedColorMap: new Map()
+        adminLists: DEFAULT_ADMINS,
+        adminColors: new Map(),
+        serverColors: [],
+        logRules: []
     };
 
     function log(level, ...args) {
         if (level <= DEBUG_LEVEL) console.log('BMUS_LOG |', ...args);
     }
 
-    async function fetchJSON(url, sourceName, options = {}) {
+    async function fetchJSON(operation, url, sourceName, { steamID, ...options } = {}) {
         try {
+            if (typeof GM_xmlhttpRequest === 'function') {
+                const result = await new Promise((resolve, reject) => {
+                    GM_xmlhttpRequest({
+                        url,
+                        method: options.method || 'GET',
+                        headers: options.headers,
+                        data: options.body,
+                        anonymous: true,
+                        timeout: REQUEST_TIMEOUT_MS,
+                        onload: resolve,
+                        onerror: reject,
+                        ontimeout: reject,
+                        onabort: reject
+                    });
+                });
+                if (result.status < 200 || result.status >= 300) throw new Error(`HTTP ${result.status}`);
+                return JSON.parse(result.responseText);
+            }
+            if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
+                const reply = await chrome.runtime.sendMessage({ type: 'bmus:fetch', operation, steamID });
+                if (reply?.error) throw new Error(reply.error);
+                return reply?.data ?? null;
+            }
             const response = await fetch(url, options);
             if (response.status === 429) {
                 console.warn(`⏳|BMUS: Rate limited fetching ${sourceName}`);
@@ -74,109 +102,99 @@ const SELECTORS = {
         }
     }
 
-    async function fetchJSONCached(url, sourceName, options = {}) {
-        const cacheKey = CACHE_PREFIX + sourceName.replace(/\s+/g, '_').toLowerCase();
-        const now = Date.now();
-
+    function readCache(url, validate) {
         try {
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                const entry = JSON.parse(cached);
-                if (now - entry.timestamp < CACHE_TTL_MS) {
-                    log(2, `📦 Using cached ${sourceName} (${Math.round((now - entry.timestamp) / 1000)}s old)`);
-                    return entry.data;
-                }
-            }
+            const entry = JSON.parse(localStorage.getItem(CACHE_PREFIX + url));
+            return entry && validate(entry.data) ? entry : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async function refreshConfig(operation, url, sourceName, validate) {
+        const data = await fetchJSON(operation, url, sourceName, { signal: window.AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+        if (!validate(data)) return null;
+        try {
+            localStorage.setItem(CACHE_PREFIX + url, JSON.stringify({ data, timestamp: Date.now() }));
         } catch {
             void 0;
-        }
-
-        const data = await fetchJSON(url, sourceName, options);
-        if (data) {
-            try {
-                localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: now }));
-            } catch {
-                void 0;
-            }
         }
         return data;
     }
 
-    function evictStaleCache() {
-        const now = Date.now();
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (!key?.startsWith(CACHE_PREFIX)) continue;
-            try {
-                const entry = JSON.parse(localStorage.getItem(key));
-                if (now - entry.timestamp >= CACHE_TTL_MS) {
-                    localStorage.removeItem(key);
-                    i--;
-                }
-            } catch {
-                localStorage.removeItem(key);
-                i--;
-            }
-        }
-    }
+    const isStringList = value => Array.isArray(value) && value.every(item => typeof item === 'string' && item.trim());
+    const isAdminConfig = value => ADMIN_GROUPS.every(group => isStringList(value?.[group]));
+    const isTermConfig = value => value?.sets && value.colors && typeof value.colors === 'object' && !Array.isArray(value.colors)
+        && Object.keys(DEFAULT_TERMS.sets).every(group => isStringList(value.sets[group]))
+        && Object.values(value.colors).every(color => typeof color === 'string')
+        && ['serverName1', 'serverName2'].every(key => value[key] == null || typeof value[key] === 'string')
+        && (value.namePrefixes == null || isStringList(value.namePrefixes))
+        && (value.phraseHighlights == null || isStringList(value.phraseHighlights));
 
     function injectGlobalCSS() {
-        if (document.getElementById('bmus-global-styles')) return;
         const styles = `
-          /* This area handles copy button and CBL lookup at player profile e.g  https://www.battlemetrics.com/rcon/players/137922013 */
+            /* Player profile actions */
             #bmus-actions-container {
-                position: absolute;
-                top: 14.35em;
-                left: 19em;
-                z-index: 1000;
                 display: flex;
+                flex-wrap: wrap;
                 align-items: center;
+                gap: 0.5rem;
+                margin-block: 0.5rem;
             }
             #copy-player-info-btn {
                 padding: 4px;
                 width: 75px;
-                background: rgb(0,  123,  255);
+                background: #005ec4;
                 color: white;
                 border: none;
                 border-radius: 5px;
                 cursor: pointer;
             }
             #CBL-info-container {
-                margin-left: 10px;
                 padding: 4px 8px;
                 background: #000000bd;
                 color: white;
                 border-radius: 5px;
                 font-size: 14px;
                 font-weight: bold;
-                white-space: nowrap;
                 text-decoration: none;
                 transition: filter 0.2s;
             }
             #CBL-info-container:hover {
-                filter:  brightness(1.2);
+                filter: brightness(1.2);
             }
-            
-    /* This area handles movable elements and server bars found at https://www.battlemetrics.com/rcon */
+
+            /* RCON dashboard drag handles */
             .css-1e8vu3u .server-handle {
                 cursor: move;
                 z-index: 10 !important;
-            } 
-
-    /* Other styling */
-            .main {
-                width: 90% !important;
-                margin-left: 4em;
-                margin-right: 4em;
             }
-            @media (max-width: 768px) {
-                .main {
-                width: inherit !important;
-            }}
-                
-    /* Changes note color icon from dull grey to bright white in player list view. */
 
-     /* Other styling */           
+            /* Desktop RCON layout */
+            @media (min-width: 769px) {
+                .main,
+                #RCONContainer:has(> #RCONServerLayout) {
+                    width: 90% !important;
+                    margin-inline: auto;
+                }
+            }
+
+            [data-bmus-text-color] {
+                color: var(--bmus-text-color) !important;
+            }
+            [data-bmus-row-background] {
+                background-color: var(--bmus-row-background) !important;
+            }
+            [data-bmus-squad-command] {
+                background-color: #b98904 !important;
+                color: #020202 !important;
+            }
+            ::highlight(bmus-keyword) {
+                background-color: #ffe181;
+                color: #211700;
+            }
+
+            /* Overrides for BattleMetrics layouts that lack stable selectors */
             .css-1nxi32t {
                 width: 1px;
             }
@@ -193,23 +211,22 @@ const SELECTORS = {
             }
             @media (max-width: 1099px) and (min-width: 950px) {
                 .css-mxzvlz {
-                width: 33%;
-                display: inline-table;
+                    width: 33%;
+                }
             }
-            }@media (max-width: 949px) and (min-width: 601px) {
+            @media (max-width: 949px) and (min-width: 601px) {
                 .css-mxzvlz {
-                width: 50%;
-                display: inline-table;
+                    width: 50%;
+                }
             }
-                
-            }@media (max-width: 600px) {
+            @media (max-width: 600px) {
                 .css-mxzvlz {
-                width: 100%;
-                display: inline-table;
+                    width: 100%;
+                }
             }
-        }`
+        `;
         const styleSheet = document.createElement("style");
-        styleSheet.id = 'bmus-global-styles';
+        styleSheet.id = STYLE_ID;
         styleSheet.textContent = styles;
         document.head.appendChild(styleSheet);
         log(2, 'Global CSS injected.');
@@ -217,6 +234,7 @@ const SELECTORS = {
 
     function showVersionMismatchWarning(localVer, remoteVer, message) {
         const warningBox = document.createElement("div");
+        warningBox.id = 'bmus-version-warning';
         Object.assign(warningBox.style, {
             position: "fixed",
             top: "0",
@@ -235,10 +253,20 @@ const SELECTORS = {
             textAlign: "center",
             backdropFilter: "blur(5px)"
         });
-        warningBox.innerHTML =
-            `<div>🚨 Battlemetrics - Chrome Extension Version Warning 🚨<br><br><div style="font-size: 1.5rem; max-width: 800px;">${message}</div><br><br>Local version: <span style="color: yellow">${localVer}</span> /// Remote version: <span style="color: cyan">${remoteVer}</span><br><br><button id="closeWarningBtn" style="padding: 10px 20px; font-size: 1rem; background: white; color: red; border: none; cursor: pointer; border-radius: 5px;">Ignore Warning & Close</button></div>`;
+        const heading = document.createElement('h2');
+        heading.textContent = 'BattleMetrics Extension Version Warning';
+        const details = document.createElement('p');
+        details.style.whiteSpace = 'pre-line';
+        details.style.overflowWrap = 'anywhere';
+        details.textContent = message;
+        const versions = document.createElement('p');
+        versions.textContent = `Local version: ${localVer} / Remote version: ${remoteVer}`;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.textContent = 'Ignore Warning & Close';
+        close.addEventListener('click', () => warningBox.remove());
+        warningBox.append(heading, details, versions, close);
         document.body.appendChild(warningBox);
-        document.getElementById("closeWarningBtn").addEventListener("click", () => warningBox.remove());
     }
 
     const timestampFormatter = new Intl.DateTimeFormat(undefined, {
@@ -247,21 +275,39 @@ const SELECTORS = {
         timeZoneName: 'short', hour12: true
     });
 
-    function applyTimeStamps() {
-        const elements = document.querySelectorAll(SELECTORS.logTimestamps);
-        elements.forEach(el => {
-            if (el.dataset.timestampApplied) return;
-            const utcTime = el.getAttribute("datetime");
-            if (!utcTime) return;
-            const date = new Date(utcTime);
-            if (isNaN(date.getTime())) return;
-            el.title = timestampFormatter.format(date);
-            el.dataset.timestampApplied = 'true';
-        });
+    function applyTimestamp(el) {
+        const utcTime = el.dateTime;
+        if (!utcTime || utcTime.startsWith('P') || el.dataset.bmusTimestamp === utcTime) return;
+        const date = new Date(utcTime);
+        if (isNaN(date.getTime())) return;
+        el.title = timestampFormatter.format(date);
+        el.dataset.bmusTimestamp = utcTime;
     }
 
-    function styleLogMessages(logMessages, { sets, colors }) {
-        const stylingRules = [
+    function applyHighlight(element, property, color) {
+        const attribute = `data-bmus-${property}`;
+        const variable = `--bmus-${property}`;
+        if (color) {
+            if (element.style.getPropertyValue(variable) !== color) {
+                element.style.setProperty(variable, color);
+            }
+            if (!element.hasAttribute(attribute)) element.setAttribute(attribute, '');
+        } else if (element.hasAttribute(attribute)) {
+            element.style.removeProperty(variable);
+            element.removeAttribute(attribute);
+        }
+    }
+
+    function buildServerColors({ serverName1, serverName2, colors }) {
+        // Longer names win when one server name contains another.
+        return [
+            { name: serverName1, color: colors.cServerName1 || '#39FF14' },
+            { name: serverName2, color: colors.cServerName2 || '#FFFF00' }
+        ].filter(entry => entry.name).sort((a, b) => b.name.length - a.name.length);
+    }
+
+    function buildLogRules({ sets, colors }) {
+        return [
             { regex: /(?:\s|:|"|^)!admin/i, backgroundColor: '#9a000040', color: 'lime' },
             { phrases: sets.grayedOut, color: colors.cGrayed },
             { phrases: sets.teamKilled, color: colors.cTeamKilled, backgroundColor: '#292135' },
@@ -274,189 +320,226 @@ const SELECTORS = {
             { phrases: sets.coloredGroup3, color: colors.cColoredGroup3 },
             { phrases: sets.trackedTriggers, color: colors.cTracked }
         ];
-
-        logMessages.forEach(element => {
-            const logLine = element.parentElement;
-            if (!logLine || logLine.dataset.styled) return;
-
-            const textContent = element.textContent;
-
-            for (const rule of stylingRules) {
-                const isMatch = rule.regex
-                    ? rule.regex.test(textContent.trim())
-                    : rule.phrases.some(phrase => textContent.includes(phrase));
-
-                if (isMatch) {
-                    if (rule.color) element.style.color = rule.color;
-                    if (rule.backgroundColor) logLine.style.backgroundColor = rule.backgroundColor;
-                    logLine.dataset.styled = 'true';
-                    break;
-                }
-            }
-        });
     }
 
-    function buildAdminColorMap(config) {
+    const styledLogText = new WeakMap();
+
+    function styleLogMessage(element) {
+        const logLine = element.parentElement;
+        const textContent = element.textContent;
+        const cached = styledLogText.get(element);
+        if (cached?.text === textContent && cached.rules === state.logRules && cached.row === logLine) return;
+        styledLogText.set(element, { text: textContent, rules: state.logRules, row: logLine });
+        const match = state.logRules.find(rule => rule.regex
+            ? rule.regex.test(textContent.trim())
+            : rule.phrases?.some(phrase => textContent.includes(phrase)));
+        const phraseMatch = !wordHighlights && state.config.phraseHighlights?.some(phrase => textContent.includes(phrase));
+        applyHighlight(element, 'text-color', match?.color || (phraseMatch ? '#ffe181' : null));
+        applyHighlight(logLine, 'row-background', match?.backgroundColor);
+    }
+
+    function buildAdminColorMap({ colors }, admins) {
         const colorMap = new Map();
-        const groups = [
-            { list: state.adminLists.group1, color: config.colors.cStaffGroup1 },
-            { list: state.adminLists.group2, color: config.colors.cStaffGroup2 },
-            { list: state.adminLists.group3, color: config.colors.cStaffGroup3 },
-        ];
-        for (const { list, color } of groups) {
-            if (!list || !color) continue;
-            for (const admin of list) colorMap.set(admin.trim(), color);
+        for (const [index, group] of ADMIN_GROUPS.entries()) {
+            const color = colors[`cStaffGroup${index + 1}`];
+            if (!color) continue;
+            for (const admin of admins[group]) colorMap.set(admin.trim(), color);
         }
         return colorMap;
     }
 
-    function styleAdminNames(adminNameElements) {
-        if (state.cachedColorMap.size === 0) return;
-        const prefixes = state.config.namePrefixes || [];
-
-        adminNameElements.forEach(el => {
-            if (el.dataset.colored) return;
-            const name = el.textContent.trim();
-            let color = state.cachedColorMap.get(name);
-
-            if (!color) {
-                for (const prefix of prefixes) {
-                    if (name.startsWith(prefix)) {
-                        color = state.cachedColorMap.get(name.substring(prefix.length).trim());
-                        if (color) break;
-                    }
-                }
+    function adminColorFor(name) {
+        const directColor = state.adminColors.get(name);
+        if (directColor) return directColor;
+        for (const prefix of state.config.namePrefixes || []) {
+            if (name.startsWith(prefix)) {
+                const color = state.adminColors.get(name.substring(prefix.length).trim());
+                if (color) return color;
             }
-
-            if (color) {
-                el.style.color = color;
-                el.dataset.colored = 'true';
-            }
-        });
+        }
+        return null;
     }
 
-    function styleSquadLeaders() {
-        document.querySelectorAll('.commands button').forEach(btn => {
-            btn.style.background = '';
-            btn.style.color = '';
-        });
-        document.querySelectorAll(SELECTORS.logPlayerNames).forEach(el => {
-            if (!el.dataset.colored) {
-                el.style.color = '';
-            }
-        });
-
-        const playerNames = document.querySelectorAll(SELECTORS.logPlayerNames);
-        playerNames.forEach(el => {
+    function stylePlayerRows(root) {
+        root.querySelectorAll(SELECTORS.logPlayerNames).forEach(el => {
             const nameContainer = el.closest('.name');
-            if (!nameContainer) return;
-            const detail = nameContainer.querySelector('.player-detail .small.text-muted');
-            if (detail && detail.textContent.trim() === 'Squad Leader') {
-                const row = el.closest('[role="row"]');
-                if (row) {
-                    const btn = row.querySelector('.commands button');
-                    if (btn) {
-                        btn.style.background = '#b98904';
-                        btn.style.color = '#020202';
-                    }
-                }
-                const name = el.textContent.trim();
-                if (!state.cachedColorMap.has(name)) {
-                    const prefixes = state.config.namePrefixes || [];
-                    const isAdmin = prefixes.some(p => name.startsWith(p) && state.cachedColorMap.has(name.substring(p.length).trim()));
-                    if (!isAdmin) {
-                        el.style.color = '#ffd900';
-                    }
-                }
-            }
+            const isLeader = Array.from(nameContainer.querySelectorAll(SELECTORS.squadDetails))
+                .some(detail => detail.textContent.trim() === 'Squad Leader'
+                    || detail.querySelector('.small.text-muted')?.textContent.trim() === 'Squad Leader');
+            const row = nameContainer.closest('[role="row"]');
+            const button = row?.querySelector(SELECTORS.squadCommand);
+            button?.toggleAttribute('data-bmus-squad-command', isLeader);
+            applyHighlight(el, 'text-color', adminColorFor(el.textContent.trim()) || (isLeader ? '#ffd900' : null));
         });
     }
 
-    function updateLogView() {
-        if (!state.config) return;
-
-        const logMessages = document.querySelectorAll(SELECTORS.logMessages);
-        const adminNameElements = document.querySelectorAll(`${SELECTORS.logActivityNames}, ${SELECTORS.logPlayerNames}`);
-        const serverNameElements = document.querySelectorAll(SELECTORS.logServerNames);
-        const noteFlagElements = document.querySelectorAll(SELECTORS.logNoteFlags);
-
-        styleLogMessages(logMessages, state.config);
-        styleAdminNames(adminNameElements);
-        styleSquadLeaders();
-
-        const { serverName1, serverName2, colors } = state.config;
-        serverNameElements.forEach(el => {
-            if (el.dataset.colored) return;
-            const text = el.textContent;
-            if (text.includes(serverName1)) el.style.color = "green";
-            else if (text.includes(serverName2)) el.style.color = "yellow";
-            el.dataset.colored = 'true';
-        });
-
-        noteFlagElements.forEach(el => {
-            if (el.classList.contains('glyphicon-comment')) {
-                el.style.color = 'rgb(255, 255, 255)';
-                return;
-            }
-            if (el.style.color) return;
-            const label = (
-                el.getAttribute("title") ||
-                el.getAttribute("aria-label") ||
-                el.closest("[title]")?.getAttribute("title") ||
-                el.closest("[aria-label]")?.getAttribute("aria-label") ||
-                ""
-            ).toLowerCase();
-            if ((label.includes("note") || label.includes("flag")) && el.textContent.trim().length < 3) {
-                el.style.color = colors.cNoteColorIcon;
-            }
-        });
-
-        applyTimeStamps();
+    function styleServerName(el) {
+        const name = el.textContent.replace(/\s+/g, ' ');
+        const match = state.serverColors.find(server => name.includes(server.name));
+        applyHighlight(el, 'text-color', match?.color);
     }
 
-    async function fetchCBLData(steamID, container) {
+    const phraseRanges = new Map();
+    const wordHighlights = window.CSS?.highlights && window.Highlight && window.StaticRange ? new window.Highlight() : null;
+
+    function clearPhraseRanges(row) {
+        for (const range of phraseRanges.get(row) || []) wordHighlights.delete(range);
+        phraseRanges.delete(row);
+    }
+
+    function highlightPhrases(row, messages) {
+        clearPhraseRanges(row);
+        const phrases = state.config.phraseHighlights;
+        if (!wordHighlights || !phrases?.length) return;
+        const ranges = [];
+        for (const message of messages) {
+            const text = message.textContent;
+            const matches = [];
+            for (const phrase of phrases) {
+                for (let start = text.indexOf(phrase); start !== -1; start = text.indexOf(phrase, start + phrase.length)) {
+                    matches.push({ start, end: start + phrase.length });
+                }
+            }
+            if (!matches.length) continue;
+            const walker = document.createTreeWalker(message, window.NodeFilter.SHOW_TEXT);
+            const parts = [];
+            let offset = 0;
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                parts.push({ node, start: offset, end: offset + node.length });
+                offset += node.length;
+            }
+            for (const { start, end } of matches) {
+                const first = parts.find(part => part.end > start);
+                const last = parts.find(part => part.end >= end);
+                const range = new window.StaticRange({
+                    startContainer: first.node, startOffset: start - first.start,
+                    endContainer: last.node, endOffset: end - last.start
+                });
+                ranges.push(range);
+                wordHighlights.add(range);
+            }
+        }
+        if (ranges.length) phraseRanges.set(row, ranges);
+    }
+
+    function updateLogRow(root) {
+        const messages = root.querySelectorAll(SELECTORS.logMessages);
+        if (!messages.length) applyHighlight(root, 'row-background', null);
+        messages.forEach(message => {
+            styleLogMessage(message);
+            message.querySelectorAll(SELECTORS.logActivityNames).forEach(el => {
+                applyHighlight(el, 'text-color', adminColorFor(el.textContent.trim()));
+            });
+        });
+        highlightPhrases(root, messages);
+        stylePlayerRows(root);
+
+        root.querySelectorAll(SELECTORS.logNoteFlags).forEach(styleNoteFlag);
+        root.querySelectorAll(SELECTORS.logTimestamps).forEach(applyTimestamp);
+        root.querySelectorAll('a[href^="/rcon/servers/"]').forEach(styleServerName);
+    }
+
+    function styleNoteFlag(icon) {
+        if (icon.classList.contains('glyphicon-comment')) {
+            applyHighlight(icon, 'text-color', '#fff');
+            return;
+        }
+        if (icon.style.color) return;
+        const label = (
+            icon.getAttribute('title') ||
+            icon.getAttribute('aria-label') ||
+            icon.closest('[title]')?.getAttribute('title') ||
+            icon.closest('[aria-label]')?.getAttribute('aria-label') ||
+            ''
+        ).toLowerCase();
+        const isNoteFlag = (label.includes('note') || label.includes('flag')) && icon.textContent.trim().length < 3;
+        applyHighlight(icon, 'text-color', isNoteFlag ? state.config.colors.cNoteColorIcon : null);
+    }
+
+    const cblRequests = new Map();
+
+    function requestCBL(steamID) {
+        const cached = cblRequests.get(steamID);
+        if (cached && Date.now() < cached.expires) return cached.promise;
         const query = {
             query: `query Search($id: String!) { steamUser(id: $id) { riskRating, activeBans: bans(expired: false) { edges { node { id } } }, expiredBans: bans(expired: true) { edges { node { id } } } } }`,
             variables: { id: steamID }
         };
-        const data = await fetchJSON("https://communitybanlist.com/graphql", "CBL GraphQL", {
+        const request = { expires: Infinity };
+        request.promise = fetchJSON('cbl', CBL_ENDPOINT, 'CBL GraphQL', {
+            steamID,
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(query)
+            body: JSON.stringify(query),
+            signal: window.AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        }).then(data => {
+            if (data?.data && !data.errors?.length) {
+                request.expires = Date.now() + CACHE_TTL_MS;
+                for (const [id, entry] of cblRequests) {
+                    if (entry.expires <= Date.now()) cblRequests.delete(id);
+                }
+            } else {
+                cblRequests.delete(steamID);
+            }
+            return data;
         });
-        if (data?.data?.steamUser) {
-            const { riskRating = 0, activeBans, expiredBans } = data.data.steamUser;
-            const active = activeBans?.edges?.length ?? 0;
-            const expired = expiredBans?.edges?.length ?? 0;
-            const riskColor = riskRating > 5 ? "red" : riskRating > 0 ? "orange" : "white";
-            container.innerHTML = `<span style="color: ${riskColor};">CBL: ${riskRating}/10</span> | <span>Act: ${active}</span> | <span>Exp: ${expired}</span>`;
+        cblRequests.set(steamID, request);
+        return request.promise;
+    }
+
+    async function fetchCBLData(profile, container) {
+        const { steamID, steamCell, path } = profile;
+        const data = await requestCBL(steamID);
+        if (playerProfile !== profile || !container.isConnected || window.location.pathname !== path
+            || !steamCell.isConnected || steamCell.textContent.trim() !== steamID) return;
+
+        if (!data?.data || data.errors?.length) {
+            container.textContent = 'CBL: Lookup unavailable';
+            return;
+        }
+        const user = data.data.steamUser;
+        if (!user) {
+            container.textContent = 'CBL: Not Found';
+            return;
+        }
+        const { riskRating, activeBans, expiredBans } = user;
+        const score = typeof riskRating === 'string' && riskRating.trim() ? Number(riskRating) : riskRating;
+        const active = Array.isArray(activeBans?.edges) ? activeBans.edges.length : 0;
+        const expired = Array.isArray(expiredBans?.edges) ? expiredBans.edges.length : 0;
+        const rating = document.createElement('span');
+        if (Number.isFinite(score) && score >= 0 && score <= 10) {
+            rating.style.color = score > 5 ? '#ff7070' : score > 0 ? 'orange' : 'white';
+            rating.textContent = `CBL: ${score}/10`;
         } else {
-            container.innerHTML = '<span>CBL: Not Found</span>';
+            rating.textContent = 'CBL: Rating unavailable';
+        }
+        container.replaceChildren(rating, ` | Act: ${active} | Exp: ${expired}`);
+    }
+
+    function* readIdentifiers(table) {
+        for (const row of table.querySelectorAll(SELECTORS.identifierRows)) {
+            const type = row.querySelector(SELECTORS.identifierType)?.textContent.trim();
+            const valueCell = row.querySelector(SELECTORS.identifierValue);
+            if (type !== undefined && valueCell) {
+                yield { row, type, valueCell, value: valueCell.textContent.trim() };
+            }
         }
     }
 
     function copyPlayerInfo() {
-        const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
+        const identifiersTable = document.querySelector(SELECTORS.playerPage)?.querySelector(SELECTORS.playerInfoTable);
         if (!identifiersTable) {
             console.error("BMUS_ERROR: Could not find identifiers table.");
             return;
         }
 
-        const rows = identifiersTable.querySelectorAll('tbody > tr');
-        let allIdentifiers = [];
-
-        rows.forEach(row => {
-            const valueEl = row.querySelector('td[data-title="Identifier"] span');
-            const typeCell = row.querySelector('td[data-title="Type"]');
-            const timeEl = row.querySelector('td[data-title="Last Seen"] time');
-            if (valueEl && typeCell && timeEl) {
-                allIdentifiers.push({
-                    value: valueEl.textContent.trim(),
-                    type: typeCell.textContent.trim(),
-                    timestamp: new Date(timeEl.getAttribute('datetime'))
-                });
+        const allIdentifiers = [];
+        for (const { row, type, value } of readIdentifiers(identifiersTable)) {
+            const time = row.querySelector(SELECTORS.identifierLastSeen);
+            if (time) {
+                allIdentifiers.push({ type, value, timestamp: new Date(time.getAttribute('datetime')) });
             }
-        });
+        }
 
         allIdentifiers.sort((a, b) => b.timestamp - a.timestamp);
 
@@ -476,64 +559,70 @@ const SELECTORS = {
             .catch(err => console.error("🚫|BMUS: Clipboard copy failed", err));
     }
 
-    async function setupPlayerPage() {
-        if (state.page.isPlayerPage) return;
+    let playerProfile;
 
-        const identifiersTable = document.querySelector(SELECTORS.playerInfoTable);
-        if (!identifiersTable) return;
-        log(1, 'Setting up player page.');
+    function setupPlayerPage(page) {
+        let actionsContainer = page.querySelector(SELECTORS.actionsContainer);
+        const path = window.location.pathname;
+        const table = page.querySelector(SELECTORS.playerInfoTable);
+        if (!table) {
+            actionsContainer?.remove();
+            return;
+        }
 
-        let steamID = null;
-        for (const row of identifiersTable.querySelectorAll('tbody > tr')) {
-            const typeCell = row.querySelector('td[data-title="Type"]');
-            const valueEl = row.querySelector('td[data-title="Identifier"] span');
-            if (typeCell?.textContent.trim() === "Steam ID") {
-                const id = valueEl?.textContent.trim();
-                if (id?.startsWith("765")) { steamID = id; break; }
+        let steamCell;
+        let steamID;
+        for (const { type, value, valueCell } of readIdentifiers(table)) {
+            if (type === 'Steam ID' && /^765\d{14}$/.test(value)) {
+                steamCell = valueCell;
+                steamID = value;
+                break;
             }
         }
 
-        state.page.isPlayerPage = true;
+        const sameIdentifiers = playerProfile?.table === table
+            && playerProfile.steamCell === steamCell && playerProfile.steamID === steamID;
+        if (sameIdentifiers && playerProfile.path !== path) {
+            // The URL changed before the previous player's table finished updating.
+            actionsContainer?.remove();
+            return;
+        }
 
-        let actionsContainer = document.querySelector(SELECTORS.actionsContainer);
         if (!actionsContainer) {
             actionsContainer = document.createElement('div');
             actionsContainer.id = SELECTORS.actionsContainer.substring(1);
-            document.body.appendChild(actionsContainer);
+            table.before(actionsContainer);
         }
 
-        if (!document.querySelector(SELECTORS.copyInfoButton)) {
+        if (!actionsContainer.querySelector(SELECTORS.copyInfoButton)) {
             const btn = document.createElement('button');
             btn.id = SELECTORS.copyInfoButton.substring(1);
+            btn.type = 'button';
             btn.textContent = '📋 Copy';
             btn.title = 'Copy Player Info';
             btn.addEventListener('click', copyPlayerInfo);
             actionsContainer.appendChild(btn);
         }
 
-        if (!document.querySelector(SELECTORS.cblInfoContainer)) {
-            if (steamID) {
-                const cblLink = document.createElement("a");
-                cblLink.id = SELECTORS.cblInfoContainer.substring(1);
-                cblLink.href = `https://communitybanlist.com/search/${steamID}`;
-                cblLink.target = "_blank";
-                cblLink.rel = "noopener noreferrer";
-                cblLink.title = `View ${steamID} on Community Ban List`;
-                cblLink.innerHTML = '<span>Loading CBL...</span>';
-                actionsContainer.appendChild(cblLink);
-                await fetchCBLData(steamID, cblLink);
-            } else {
-                const cblDiv = document.createElement("div");
-                cblDiv.id = SELECTORS.cblInfoContainer.substring(1);
-                cblDiv.innerHTML = '<span>CBL: SteamID not found</span>';
-                actionsContainer.appendChild(cblDiv);
-            }
+        const existing = actionsContainer.querySelector(SELECTORS.cblInfoContainer);
+        if (existing && sameIdentifiers) return;
+
+        playerProfile = { path, table, steamCell, steamID };
+        existing?.remove();
+        const result = document.createElement(steamID ? 'a' : 'span');
+        result.id = SELECTORS.cblInfoContainer.substring(1);
+        result.textContent = steamID ? 'Loading CBL…' : 'CBL: Steam ID not found';
+        if (steamID) {
+            result.href = `https://communitybanlist.com/search/${steamID}`;
+            result.target = '_blank';
+            result.rel = 'noopener noreferrer';
         }
+        actionsContainer.appendChild(result);
+        if (steamID) void fetchCBLData(playerProfile, result);
     }
 
-    function updateOrgEditPage() {
-        if (!state.page.isOrgEditPage) state.page.isOrgEditPage = true;
-        document.querySelectorAll(SELECTORS.orgRoleList).forEach(li => {
+    function updateOrgEditPage(page) {
+        page.querySelectorAll(SELECTORS.orgRoleList).forEach(li => {
             if (li.dataset.modified) return;
             const textNode = Array.from(li.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
             if (textNode) li.insertBefore(document.createTextNode(' ||| '), textNode.nextSibling);
@@ -541,85 +630,206 @@ const SELECTORS = {
         });
     }
 
-    function setupBanButton() {
-        const banButton = document.querySelector(SELECTORS.banButton);
-        if (!banButton || banButton.dataset.modified) return;
-
-        const newBtn = banButton.cloneNode(true);
-        newBtn.href = `/rcon/bans?filter%5Borganization%5D=${BM_ORG_ID}&filter%5Bexpired%5D=true`;
-        newBtn.dataset.modified = 'true';
-        banButton.parentNode.replaceChild(newBtn, banButton);
+    function updateBanHref(link) {
+        if (link.getAttribute('href') !== BAN_TARGET) link.setAttribute('href', BAN_TARGET);
     }
 
-    function isLogView() {
-        return document.querySelector(SELECTORS.logContainer)
-            || document.querySelector('[data-testid="activity"]');
-    }
+    function setupBanButton(nav) {
+        if (!nav.dataset.bmusBanIntercept) {
+            nav.dataset.bmusBanIntercept = 'true';
+            nav.addEventListener('click', (event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                const link = event.target?.closest?.(BAN_LINK);
+                if (!link || !nav.contains(link)) return;
+                updateBanHref(link);
+                event.preventDefault();
+                event.stopPropagation();
+                const query = new window.URLSearchParams(window.location.search);
+                const alreadyThere = window.location.pathname === BAN_PATH
+                    && query.get('filter[organization]') === String(BM_ORG_ID)
+                    && query.get('filter[expired]') === 'true';
+                if (!alreadyThere) window.location.assign(BAN_TARGET);
+            });
+        }
 
-    let observerScheduled = false;
-
-    function scheduleUpdate() {
-        if (observerScheduled) return;
-        observerScheduled = true;
-        window.requestAnimationFrame(() => {
-            observerScheduled = false;
-            processDOMChanges();
+        nav.querySelectorAll(BAN_LINK).forEach(banButton => {
+            updateBanHref(banButton);
+            if (!banButton.dataset.modified) banButton.dataset.modified = 'true';
         });
     }
 
-    function processDOMChanges() {
-        const onPlayerPage = document.querySelector(SELECTORS.playerPage);
-        if (onPlayerPage) {
-            setupPlayerPage();
-        } else if (state.page.isPlayerPage) {
-            document.querySelector(SELECTORS.actionsContainer)?.remove();
-            state.page.isPlayerPage = false;
-        }
+    const pending = new Map();
+    const grids = new Map();
+    let frameScheduled = false;
+    let observedPath = window.location.pathname;
 
-        if (isLogView()) updateLogView();
-        
-        if (document.querySelector(SELECTORS.orgEditPage)) updateOrgEditPage();
-        else state.page.isOrgEditPage = false;
-        
-        setupBanButton();
+    function mutationElement(record) {
+        return record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
     }
 
-    async function main() {
-        log(1, `🚀 BMUS v${EXTENSION_VERSION}: Initializing...`);
-        evictStaleCache();
-        const [customConfig, adminList] = await Promise.all([
-            fetchJSONCached(DATA_SOURCES.customConfig, "Custom Config"),
-            fetchJSONCached(DATA_SOURCES.adminList, "Admin List")
-        ]);
+    function queue(element, update) {
+        pending.set(element, update);
+        if (frameScheduled) return;
+        frameScheduled = true;
+        window.requestAnimationFrame(() => {
+            frameScheduled = false;
+            for (const [target, run] of pending) {
+                if (target.isConnected) run(target);
+            }
+            pending.clear();
+        });
+    }
 
-        if (!customConfig) {
-            showVersionMismatchWarning(EXTENSION_VERSION, "Error", 
-                `Could not load configuration from:\n${DATA_SOURCES.customConfig}`);
-            return;
+    function queueRow(row) {
+        queue(row, updateLogRow);
+    }
+
+    function queueGrid(root) {
+        for (const row of root.children) queueRow(row);
+    }
+
+    function mountGrid(root) {
+        if (grids.has(root)) return;
+        const rowFor = element => {
+            while (element && element !== root) {
+                if (element.parentElement === root) return element;
+                element = element.parentElement;
+            }
+            return null;
+        };
+        const observer = new MutationObserver(records => {
+            for (const record of records) {
+                const element = mutationElement(record);
+                const time = element?.closest('time');
+                if (time?.dateTime.startsWith('P')) continue;
+                if (record.attributeName === 'datetime' && time) {
+                    queue(time, applyTimestamp);
+                    continue;
+                }
+                const row = rowFor(element);
+                if (row) {
+                    queueRow(row);
+                } else if (element === root) {
+                    for (const removed of record.removedNodes) {
+                        pending.delete(removed);
+                        clearPhraseRanges(removed);
+                    }
+                    for (const added of record.addedNodes) {
+                        if (added.nodeType === Node.ELEMENT_NODE && added.parentElement === root) queueRow(added);
+                    }
+                }
+            }
+        });
+        observer.observe(root, {
+            childList: true, subtree: true, characterData: true,
+            attributes: true, attributeFilter: ['datetime', 'href']
+        });
+        grids.set(root, observer);
+        queueGrid(root);
+    }
+
+    const watched = [
+        [SELECTORS.logContainer, mountGrid],
+        [SELECTORS.serverNameDisplays, styleServerName],
+        [SELECTORS.playerPage, setupPlayerPage],
+        [SELECTORS.orgEditPage, updateOrgEditPage],
+        [SELECTORS.rconNav, setupBanButton]
+    ];
+    const localViews = watched.slice(1);
+
+    function discover(root) {
+        for (const [selector, update] of watched) {
+            if (root.matches?.(selector)) queue(root, update);
+            root.querySelectorAll(selector).forEach(element => queue(element, update));
         }
-        state.config = customConfig;
+    }
 
-        const remoteVersion = state.config?.chrome_extension_version;
-        if (!remoteVersion) {
-            showVersionMismatchWarning(EXTENSION_VERSION, "Unavailable", 
-                `Remote version missing from config.\nURL: ${DATA_SOURCES.customConfig}`);
-        } else if (!versionsEqual(remoteVersion, EXTENSION_VERSION)) {
-            showVersionMismatchWarning(EXTENSION_VERSION, remoteVersion,
-                `Script version mismatched. Please update.\nConfig URL: ${DATA_SOURCES.customConfig}`);
+    function updatePage(records) {
+        const path = window.location.pathname;
+        if (path !== observedPath) {
+            observedPath = path;
+            const page = document.querySelector(SELECTORS.playerPage);
+            if (page) queue(page, setupPlayerPage);
         }
-
-        if (adminList) {
-            state.adminLists.group1 = new Set(adminList.group1);
-            state.adminLists.group2 = new Set(adminList.group2);
-            state.adminLists.group3 = new Set(adminList.group3);
+        let removedElements = false;
+        for (const record of records) {
+            const target = mutationElement(record);
+            if (!target || target.closest(SELECTORS.actionsContainer)) continue;
+            const grid = target.closest(SELECTORS.logContainer);
+            if (grid && grids.has(grid)) continue;
+            if (grid) queue(grid, mountGrid);
+            for (const [selector, update] of localViews) {
+                const scope = target.closest(selector);
+                if (scope) queue(scope, update);
+            }
+            for (const node of record.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) discover(node);
+            }
+            for (const node of record.removedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) removedElements = true;
+            }
         }
-        state.cachedColorMap = buildAdminColorMap(state.config);
+        if (!removedElements) return;
+        for (const [root, observer] of grids) {
+            if (root.isConnected && root.matches(SELECTORS.logContainer)) continue;
+            observer.disconnect();
+            grids.delete(root);
+            for (const row of root.children) clearPhraseRanges(row);
+        }
+        for (const row of phraseRanges.keys()) {
+            if (!row.isConnected) clearPhraseRanges(row);
+        }
+        if (playerProfile && !playerProfile.table.isConnected) playerProfile = undefined;
+    }
 
+    function refreshAdminColors() {
+        state.adminColors = buildAdminColorMap(state.config, state.adminLists);
+        for (const root of grids.keys()) queueGrid(root);
+    }
+
+    function setAdmins(admins) {
+        state.adminLists = admins;
+        refreshAdminColors();
+    }
+
+    function setTerms(terms, isRemote) {
+        state.config = { ...DEFAULT_TERMS, ...terms, colors: { ...DEFAULT_TERMS.colors, ...terms.colors } };
+        state.logRules = buildLogRules(state.config);
+        state.serverColors = buildServerColors(state.config);
+        refreshAdminColors();
+        document.querySelectorAll(SELECTORS.serverNameDisplays).forEach(el => queue(el, styleServerName));
+        const remoteVersion = terms.chrome_extension_version;
+        if (isRemote && remoteVersion && !versionsEqual(remoteVersion, EXTENSION_VERSION)
+            && !document.getElementById('bmus-version-warning')) {
+            showVersionMismatchWarning(EXTENSION_VERSION, remoteVersion, 'An update is available for your BattleMetrics extension.');
+        }
+    }
+
+    function loadConfig(operation, url, label, defaults, validate, apply) {
+        const cached = readCache(url, validate);
+        apply(cached?.data || defaults, Boolean(cached));
+        if (!cached || Date.now() - cached.timestamp >= CACHE_TTL_MS) {
+            void refreshConfig(operation, url, label, validate).then(data => {
+                if (data && JSON.stringify(data) !== JSON.stringify(cached?.data || defaults)) apply(data, true);
+            }).catch(error => log(1, error));
+        }
+    }
+
+    function main() {
+        if (document.getElementById(STYLE_ID)) return;
         injectGlobalCSS();
-        new MutationObserver(scheduleUpdate).observe(document.body, { childList: true, subtree: true, characterData: true });
-        processDOMChanges();
-        log(1, "👀 Observer active.");
+        if (wordHighlights) window.CSS.highlights.set('bmus-keyword', wordHighlights);
+        loadConfig('terms', DATA_SOURCES.customConfig, 'Custom Config', DEFAULT_TERMS, isTermConfig, setTerms);
+        loadConfig('admins', DATA_SOURCES.adminList, 'Admin List', DEFAULT_ADMINS, isAdminConfig, setAdmins);
+        discover(document);
+        new MutationObserver(updatePage).observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ['href']
+        });
     }
 
-    await main();
+    main();
 })();

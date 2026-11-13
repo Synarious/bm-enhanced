@@ -10,7 +10,7 @@ async function buildAdminList() {
     if (!adminData) throw new Error('No data returned from Battlemetrics API');
 
     console.log('\nStep 2/3: Parsing and grouping admin users...\n');
-    const groups = parseAdminData(adminData);
+    const groups = parseAdminData(adminData, { writeGroups: false });
 
     console.log('\nStep 3/3: Resolving Steam IDs to profile names...\n');
     await resolveSteamNames(groups);

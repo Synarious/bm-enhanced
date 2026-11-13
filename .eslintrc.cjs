@@ -1,18 +1,48 @@
-module.exports = {
-  root: true,
-  env: {
-    browser: true,
-    es2021: true,
+const js = require('@eslint/js');
+
+module.exports = [
+  {
+    ignores: ['builds/**', 'docs/**', 'node_modules/**'],
   },
-  extends: [
-    'eslint:recommended',
-  ],
-  parserOptions: {
-    ecmaVersion: 2021,
-    sourceType: 'script',
+  js.configs.recommended,
+  {
+    files: ['src/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: 'script',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        MutationObserver: 'readonly',
+        Node: 'readonly',
+        navigator: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        GM_xmlhttpRequest: 'readonly',
+        chrome: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
   },
-  rules: {
-    'no-console': 'off',
-    'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+  {
+    files: ['build.js'],
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: 'commonjs',
+      globals: {
+        console: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        process: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+    },
   },
-};
+];
