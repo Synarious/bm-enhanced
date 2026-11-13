@@ -1,5 +1,5 @@
 {
-  "version": "4.1",
+  "version": "4.3",
   "orgId": 58064,
   "dataSources": {
     "adminList": "https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/src/config/adminList.json",
@@ -15,9 +15,9 @@
   },
   "adminList": {
     "roles": {
-      "moderator1": "37219",
-      "admin1": "37220",
-      "admin2": "",
+      "adminLevel": "37220",
+      "adminGame1": "37217",
+      "adminGame2": "43376",
       "super_admin": "24942"
     }
   },

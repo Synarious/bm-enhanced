@@ -1,10 +1,10 @@
 {
-  "version": "4.1",
-  "chrome_extension_version": "4.1",
+  "version": "4.3",
+  "chrome_extension_version": "4.3",
   "updateRate": "65",
   "bmORG_ID": "58064",
-  "serverName1": "#1",
-  "serverName2": "#2",
+  "serverName1": "The Unnamed -",
+  "serverName2": "Unnamed #1 |",
   "namePrefixes": [
     "Uɴɴ.",
     "Uɴɴ.x",
@@ -31,13 +31,19 @@
     "Unn.ᴀ✘.",
     "Unn.✘",
     "Unn.ΞP.",
+    "Uɴɴ.s. ",
     "RaT | ",
     "RaT |",
     "RaT|",
     "RAT | ",
     "RAT |",
     "((DS))",
-    "((DS)) "
+    "((DS)) ",
+    "[UNN.] ",
+    "[Unn.] ",
+    "[DS] ",
+    "[(DS)] ",
+    "[((DS))] "
   ],
   "sets": {
     "teamKilled": [
@@ -143,6 +149,8 @@
     "cJoined": "#919191",
     "cGrayed": "#919191",
     "cTracked": "#FF931A",
+    "cServerName1": "#4ed400",
+    "cServerName2": "#ffae07",
     "cNoteColorIcon": "#f5ccff"
   }
 }
