@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name Battlemetrics Toolkit - Desktop
 // @namespace https://www.battlemetrics.com/
-// @version 4.1
+// @version 4.0
 // @updateURL https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/builds/tampermonkey_userscript/bm-enhanced.min.js
 // @downloadURL https://raw.githubusercontent.com/unn-corp/bm-enhanced/refs/heads/main/builds/tampermonkey_userscript/bm-enhanced.min.js
 // @description Modifies the rcon panel for battlemetrics to help color code important events and details about players.
