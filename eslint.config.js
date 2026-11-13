@@ -19,6 +19,8 @@ module.exports = [
         navigator: 'readonly',
         console: 'readonly',
         fetch: 'readonly',
+        GM_xmlhttpRequest: 'readonly',
+        chrome: 'readonly',
       },
     },
     rules: {
