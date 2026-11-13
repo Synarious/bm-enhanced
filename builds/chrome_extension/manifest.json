@@ -6,14 +6,7 @@
   "icons": {
     "128": "icons/icon.png"
   },
-  "permissions": [
-    "scripting",
-    "storage",
-    "tabs",
-    "offscreen"
-  ],
   "host_permissions": [
-    "https://www.battlemetrics.com/*",
     "https://communitybanlist.com/*",
     "https://raw.githubusercontent.com/*"
   ],
@@ -37,5 +30,8 @@
         "https://www.battlemetrics.com/*"
       ]
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  }
 }

@@ -20,7 +20,7 @@ function loadRoles() {
     }
 }
 
-function parseAdminData(adminData) {
+function parseAdminData(adminData, { writeGroups = true } = {}) {
     const blacklistConfigPath = path.join(__dirname, 'blacklistConfig.json');
     let blacklist = [];
     try {
@@ -103,8 +103,10 @@ function parseAdminData(adminData) {
 
     const outputPath = path.join(__dirname, '..', '..', 'src', 'config', 'adminList.json');
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, JSON.stringify(groups, null, 2), 'utf8');
-    console.log(`✓ Created adminList.json at ${outputPath}`);
+    if (writeGroups) {
+        fs.writeFileSync(outputPath, JSON.stringify(groups, null, 2), 'utf8');
+        console.log(`✓ Created adminList.json at ${outputPath}`);
+    }
     console.log(`  - Group 1: ${groups.group1.length} users (AdminGame1 OR AdminLevel)`);
     console.log(`  - Group 2: ${groups.group2.length} users (AdminGame2, no AdminGame1)`);
     console.log(`  - Group 3: ${groups.group3.length} users (AdminGame2 + AdminGame1 OR Super Admin)`);

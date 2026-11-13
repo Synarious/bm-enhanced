@@ -7,6 +7,7 @@ It's free and open source — please consider leaving a coffee at [ko-fi.com/syn
 
 ### Log Viewer
 - **Keyword highlighting** — Color-code log messages based on configurable phrases (admin actions, team kills, warnings, kicks, bans, custom triggers).
+- **Exact phrase highlights** — Add literal, case-sensitive phrases to `phraseHighlights` in `termList.json` to highlight just those words. Browsers without custom text highlights use message coloring.
 - **Admin name coloring** — Staff names are highlighted in 3 distinct colors based on their group, with clan tag/prefix stripping for accurate matching.
 - **Join/leave dimming** — Gray out repetitive join/leave events to focus on what matters.
 - **Timestamp tooltips** — Hover over any timestamp to see the full localized date and exact time down to the second.
@@ -24,7 +25,7 @@ It's free and open source — please consider leaving a coffee at [ko-fi.com/syn
 - **RCON warning fix** — Prevents the "RCON disabled" banner from overflowing over collapsed servers.
 
 ### Real-Time Configuration
-- **Remote JSON configs** — Admin lists and keyword sets are fetched from GitHub-hosted JSON files, allowing real-time updates without reinstalling the extension or userscript.
+- **Remote JSON configs** — Bundled terms and admin lists work on startup. The script uses the last valid cached configuration when available and refreshes each stale file independently.
 - **Version checking** — Displays a full-screen warning overlay when a new script version is available, ensuring your entire org stays updated.
 - **No page refresh** — Uses a MutationObserver to apply all enhancements as you navigate and as new log entries appear in real time.
 
@@ -151,7 +152,7 @@ Four files carry version numbers. Here's what each controls:
 | `builds/customization.json:2` — `"version"` | `"4.1"` | **Single source of truth.** The build script reads this value and injects it into source, manifest, and Tampermonkey output. Bump this on every release. | Manual |
 | `src/config/termList.json:2` — `"version"` | `"3.01"` | Should match the version in `customization.json`. Purely informational. | Manual |
 | `src/config/termList.json:3` — `"chrome_extension_version"` | `"3.01"` | **Runtime version check.** Every time the script loads, it fetches this JSON remotely and compares against the version baked into the script. If they differ, a full-screen warning overlay tells users to update. Must match the `version` in `customization.json` or the check fires. | Manual |
-| `builds/chrome_extension/manifest.json` — `"version"` | (auto-filled) | Chrome's extension manifest. **Auto-updated** by the build script from `customization.json`. The version is parsed as a number (e.g. `"4.1"` → `4.1`) and written here. | Automated by `build.js` |
+| `builds/chrome_extension/manifest.json` — `"version"` | (auto-filled) | Chrome's extension manifest. The build validates and preserves the dotted version from `customization.json`. | Automated by `build.js` |
 | `builds/tampermonkey_userscript/template.user.js` — `@version` | (auto-filled) | The build script reads the version from `customization.json` and writes the `@version` line in the output automatically. Never edit this manually. | Automated by `build.js` |
 | `package.json:3` — `"version"` | `"3.0"` | npm package metadata only. Not consumed by any build or runtime logic. | Manual |
 

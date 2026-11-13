@@ -117,6 +117,8 @@ async function runBuild() {
     tampermonkeyTemplate: path.join(__dirname, 'builds', 'tampermonkey_userscript', 'template.user.js'),
     tampermonkeyOutput: path.join(__dirname, 'builds', 'tampermonkey_userscript', 'bm-enhanced.min.js'),
     chromeExtensionOutput: path.join(__dirname, 'builds', 'chrome_extension', 'content.js'),
+    chromeWorkerTemplate: path.join(__dirname, 'builds', 'chrome_extension', 'worker.template.js'),
+    chromeWorkerOutput: path.join(__dirname, 'builds', 'chrome_extension', 'worker.js'),
     manifest: path.join(__dirname, 'builds', 'chrome_extension', 'manifest.json'),
   };
 
@@ -142,9 +144,11 @@ async function runBuild() {
     console.log(`  - Version: ${customization.version}`);
     console.log(`  - Org ID: ${customization.orgId}`);
 
-    const numericVersion = parseFloat(customization.version);
-    if (isNaN(numericVersion)) {
-      throw new Error(`Cannot parse version "${customization.version}" as a number for manifest.json`);
+    const version = String(customization.version);
+    if (!/^(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){0,3}$/.test(version)
+        || version.split('.').some(part => Number(part) > 65535)
+        || !version.split('.').some(part => Number(part) > 0)) {
+      throw new Error(`Invalid Chrome extension version "${version}"`);
     }
 
     // --- Resolve source template placeholders ---
@@ -155,7 +159,9 @@ async function runBuild() {
     sourceCode = sourceCode
       .replace('"__VERSION__"', `"${customization.version}"`)
       .replace('"__ORG_ID__"', customization.orgId)
-      .replace('"__DATA_SOURCES__"', JSON.stringify(customization.dataSources));
+      .replace('"__DATA_SOURCES__"', () => JSON.stringify(customization.dataSources))
+      .replace('"__DEFAULT_TERMS__"', () => JSON.stringify(require('./src/config/termList.json')))
+      .replace('"__DEFAULT_ADMINS__"', () => JSON.stringify(require('./src/config/adminList.json')));
 
     const originalSize = Buffer.byteLength(sourceCode, 'utf8');
     console.log(`  - Resolved source size: ${originalSize} bytes`);
@@ -194,6 +200,8 @@ async function runBuild() {
 
     console.log('  - Injecting metadata and minified code...');
     const tm = customization.tampermonkey;
+    const configHosts = [...new Set(Object.values(customization.dataSources).map(url => new URL(url).hostname))]
+      .filter(host => host !== 'communitybanlist.com');
     templateContent = templateContent
       .replace(/^\/\/ @name .*$/m, `// @name ${tm.name}`)
       .replace(/^\/\/ @namespace .*$/m, `// @namespace ${tm.namespace}`)
@@ -202,7 +210,8 @@ async function runBuild() {
       .replace(/^\/\/ @downloadURL .*$/m, `// @downloadURL ${tm.downloadURL}`)
       .replace(/^\/\/ @description .*$/m, `// @description ${tm.description}`)
       .replace(/^\/\/ @author .*$/m, `// @author ${tm.author}`)
-      .replace('//INJECT_MINIFIED_CODE_HERE', minifiedCode);
+      .replace('// @connect communitybanlist.com', line => [line, ...configHosts.map(host => `// @connect ${host}`)].join('\n'))
+      .replace('//INJECT_MINIFIED_CODE_HERE', () => minifiedCode);
 
     console.log('  - Running syntax check on Tampermonkey output...');
     validateJavaScript(templateContent, 'Tampermonkey script', paths.tampermonkeyOutput);
@@ -215,6 +224,10 @@ async function runBuild() {
     console.log('  - Running syntax check on Chrome extension output...');
     validateJavaScript(minifiedCode, 'Chrome extension script', paths.chromeExtensionOutput);
     await fs.writeFile(paths.chromeExtensionOutput, minifiedCode);
+    const worker = (await fs.readFile(paths.chromeWorkerTemplate, 'utf8'))
+      .replace('"__DATA_SOURCES__"', () => JSON.stringify(customization.dataSources));
+    validateJavaScript(worker, 'Chrome request worker', paths.chromeWorkerOutput);
+    await fs.writeFile(paths.chromeWorkerOutput, worker);
     console.log(`  - Chrome Extension script written to: ${paths.chromeExtensionOutput}`);
 
     // --- Update Chrome Extension manifest ---
@@ -226,7 +239,13 @@ async function runBuild() {
     const ce = customization.chromeExtension;
     manifest.name = ce.name;
     manifest.description = ce.description;
-    manifest.version = String(numericVersion);
+    manifest.version = version;
+    manifest.background = { service_worker: 'worker.js' };
+    delete manifest.permissions;
+    manifest.host_permissions = [...new Set([
+      'https://communitybanlist.com/*',
+      ...Object.values(customization.dataSources).map(url => `${new URL(url).origin}/*`)
+    ])];
 
     console.log(`  - Manifest version set to "${manifest.version}"`);
     console.log(`  - Manifest name: "${manifest.name}"`);

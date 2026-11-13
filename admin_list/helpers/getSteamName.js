@@ -152,7 +152,17 @@ async function resolveSteamNames(adminList) {
 
     const adminListOutput = path.join(__dirname, '..', '..', 'src', 'config', 'adminList.json');
     fs.mkdirSync(path.dirname(adminListOutput), { recursive: true });
-    fs.writeFileSync(adminListOutput, JSON.stringify(processedAdminList, null, 2), 'utf8');
+    if (Object.values(processedAdminList).some(group =>
+        group.some(name => typeof name !== 'string' || !name.trim()))) {
+        throw new Error('Resolved admin list contains invalid names');
+    }
+    const stagedOutput = `${adminListOutput}.${process.pid}.tmp`;
+    try {
+        fs.writeFileSync(stagedOutput, JSON.stringify(processedAdminList, null, 2), 'utf8');
+        fs.renameSync(stagedOutput, adminListOutput);
+    } finally {
+        fs.rmSync(stagedOutput, { force: true });
+    }
     console.log(`✓ Updated src/config/adminList.json with resolved Steam names`);
     console.log(`  - Group 1: ${processedAdminList.group1.length} users`);
     console.log(`  - Group 2: ${processedAdminList.group2.length} users`);
